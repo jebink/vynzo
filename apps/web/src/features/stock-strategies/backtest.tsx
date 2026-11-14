@@ -118,7 +118,9 @@ export function BacktestReplay({
   const t0 = time(run.first);
   const t1 = time(run.last);
   const span = t1 - t0 || 1;
-  const received = run.status === "done" ? 1 : Math.max(0, (time(run.through) - t0) / span);
+  // Before the start event the date range is unknown (NaN): treat it as no progress yet.
+  const sofar = (time(run.through) - t0) / span;
+  const received = run.status === "done" ? 1 : Number.isFinite(sofar) ? Math.max(0, sofar) : 0;
   const progress = reduced || skipped ? received : Math.min(received, elapsed / SWEEP_MS);
   const cursor = t0 + progress * span;
   const finished = run.status === "done" && progress >= 1;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ErrorState, LoadingState } from "@/components/status";
 import { FactorRow } from "@/features/opportunities/opportunity-card";
 import { HORIZONS } from "@/features/opportunities/horizons";
@@ -36,7 +36,8 @@ export function StrategyPanel({
   const { run, start } = useBacktest(exchange, symbol);
   const [chosenAnimate, setAnimateFor] = useState<string | null | undefined>(undefined);
   const [replays, setReplays] = useState(0);
-  const fallback = data.data ? defaultTag(data.data) : null;
+  // Memoised: a new object each render would re-run the levels effect below in a render loop.
+  const fallback = useMemo(() => (data.data ? defaultTag(data.data) : null), [data.data]);
   const selected = chosen === undefined ? fallback : chosen;
   const animateFor = chosenAnimate === undefined ? (fallback?.id ?? null) : chosenAnimate;
 
