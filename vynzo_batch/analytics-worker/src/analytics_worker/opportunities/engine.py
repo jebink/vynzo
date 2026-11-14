@@ -560,6 +560,15 @@ def _blocking_risks(direction: str, regime: Regime) -> list[str]:
     return out
 
 
+@dataclass(frozen=True)
+class Rejection:
+    """Why a listing made no pick for a horizon: the first gate it failed, for the stock page."""
+
+    reason: str
+    factors: list[Factor] = field(default_factory=list)
+    score: int | None = None  # set when it failed only on the final score
+
+
 def evaluate(
     horizon: str,
     f: Features,
@@ -572,15 +581,36 @@ def evaluate(
     ``setups`` (named strategies, `strategies.py`) that agree with the pick's direction are
     attached to it. They label the pick; they do not change its score or status.
     """
+    result = assess(horizon, f, levels, regime, setups)
+    return result if isinstance(result, Opportunity) else None
+
+
+def assess(
+    horizon: str,
+    f: Features,
+    levels: Levels,
+    regime: Regime,
+    setups: list[Setup] | tuple[Setup, ...] = (),
+) -> Opportunity | Rejection:
+    """`evaluate`, but a non-pick says which gate it failed."""
     recipe = RECIPES[horizon]
     if f.bars < recipe.min_bars or not finite(f.atr14) or f.atr14 <= 0:
-        return None
+        return Rejection(f"Not enough history: {f.bars} sessions, needs {recipe.min_bars}")
     if not _tradeable(f, recipe):
-        return None
+        if f.close < MIN_PRICE:
+            return Rejection(f"Price {f.close:.2f} is below the ₹{MIN_PRICE:g} floor")
+        return Rejection(
+            f"Too illiquid: about ₹{f.traded_value_20 / 1e7:.1f} crore traded per day, "
+            f"needs ₹{recipe.min_traded_value / 1e7:.1f} crore"
+        )
     factors = recipe.factors(f)
     c = confluence(recipe.weights, factors, recipe.agree)
     if c.direction == 0 or len(c.agreeing) < MIN_CONFLUENCE:
-        return None
+        return Rejection(
+            f"Only {len(c.agreeing)} of {len(factors)} factor groups agree on a direction; "
+            f"needs {MIN_CONFLUENCE}",
+            factors,
+        )
 
     d = c.direction
     plan = trade_plan(recipe, f, levels, d)
@@ -614,7 +644,12 @@ def evaluate(
     if f.rvol20 > VOLUME_ANOMALY:
         risks.append(f"Volume was {f.rvol20:.0f}× normal: check for a block deal or a data error")
     if score < recipe.watch_score:
-        return None
+        return Rejection(
+            f"Score {score} after penalties is below the {recipe.watch_score} floor"
+            + (f" ({'; '.join(risks[:2])})" if risks else ""),
+            factors,
+            score,
+        )
 
     confidence = _confidence(score, c, regime_against, recipe)
     direction = "BUY" if d > 0 else "SELL"
@@ -702,6 +737,7 @@ class Scan:
     picks: list[Opportunity]
     setups: list[Setup]  # every swing setup at this bar, whether or not a pick was made
     features: Features
+    rejections: dict[str, Rejection] = field(default_factory=dict)  # horizons with no pick
 
 
 def scan(bars: pd.DataFrame, benchmark: pd.Series | None, regime: Regime) -> Scan | None:
@@ -717,16 +753,19 @@ def scan(bars: pd.DataFrame, benchmark: pd.Series | None, regime: Regime) -> Sca
     swing = RECIPES["swing"]
     setups: list[Setup] = []
     picks = []
+    rejections: dict[str, Rejection] = {}
     for horizon, recipe in RECIPES.items():
         levels = find_levels(
             bars, k=recipe.pivot_k, lookback=recipe.pivot_lookback, atr=features.atr14
         )
         if recipe is swing and _tradeable(features, swing):
             setups = detect_setups(bars, features, levels)
-        opp = evaluate(horizon, features, levels, regime, setups if recipe is swing else ())
-        if opp is not None:
-            picks.append(opp)
-    return Scan(picks, setups, features)
+        result = assess(horizon, features, levels, regime, setups if recipe is swing else ())
+        if isinstance(result, Opportunity):
+            picks.append(result)
+        else:
+            rejections[horizon] = result
+    return Scan(picks, setups, features, rejections)
 
 
 def _tradeable(f: Features, recipe: Recipe) -> bool:

@@ -46,8 +46,8 @@ const REGIME_STYLE: Record<MarketRegime["label"], string> = {
   unknown: "border-zinc-300 bg-zinc-50 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300",
 };
 
-/** The Market screen: ranked BUY/SELL opportunities for three horizons, with a track record. */
-export function MarketOpportunities() {
+/** The Signals screen: ranked BUY/SELL opportunities for three horizons, with a track record. */
+export function SignalsOpportunities() {
   const [horizon, setHorizon] = useState<Horizon>("swing");
   const [direction, setDirection] = useState<DirectionFilter>("ALL");
   const [confidence, setConfidence] = useState<ConfidenceFilter>("any");
@@ -253,7 +253,7 @@ function DataStrip({ asOf, regime, note }: { asOf: string | null; regime: Market
           title={regime.notes.join("\n")}
           className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${REGIME_STYLE[regime.label]}`}
         >
-          Market {regime.label}
+          Regime: {regime.label}
         </span>
       ) : null}
       <span className="basis-full text-xs text-zinc-500 dark:text-zinc-400">

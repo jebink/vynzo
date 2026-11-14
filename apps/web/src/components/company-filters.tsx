@@ -1,4 +1,4 @@
-// Market cap and sector filters shared by the Market and Stocks screens.
+// Market cap and sector filters shared by the Signals and Stocks screens.
 import type { CapCategory } from "@/lib/types";
 
 export type CapFilter = "all" | CapCategory;

@@ -1240,6 +1240,7 @@ dependencies = [
     { name = "psycopg", extra = ["binary", "pool"] },
     { name = "pydantic-settings" },
     { name = "uvicorn", extra = ["standard"] },
+    { name = "vynzo-analytics-worker" },
 ]
 
 [package.metadata]
@@ -1248,6 +1249,7 @@ requires-dist = [
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2" },
     { name = "pydantic-settings", specifier = ">=2.10" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.35" },
+    { name = "vynzo-analytics-worker", editable = "vynzo_batch/analytics-worker" },
 ]
 
 [[package]]
