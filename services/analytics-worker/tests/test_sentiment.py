@@ -319,3 +319,26 @@ def test_job_stops_calling_when_quota_is_spent():
     )
     assert calls == 1 and report.quota_exhausted
     assert len(report.failed) == n and conn.written == []
+
+
+def test_job_starts_each_batch_with_the_model_that_last_answered():
+    conn = FakeConn([_listing(i, i, f"S{i}") for i in range(BATCH_SIZE + 1)])
+    seen: list[list[str]] = []
+
+    def chat(_system, user, *, models, **_kw):
+        seen.append(models)
+        symbols = [line[4:].split(":")[0] for line in user.splitlines() if line.startswith("### ")]
+        return {"results": [{"symbol": s, "score": 0} for s in symbols]}, "b:free"
+
+    report = run_sentiment(
+        conn,
+        api_key="k",
+        model=None,
+        as_of=date(2026, 11, 14),
+        fetch=lambda symbol, *_: [_h(f"{symbol} news", 1)],
+        chat=chat,
+        list_models=lambda _m: ["a:free", "b:free"],
+        pause_s=0,
+    )
+    assert report.scored == BATCH_SIZE + 1
+    assert seen == [["a:free", "b:free"], ["b:free", "a:free"]]

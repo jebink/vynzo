@@ -205,5 +205,7 @@ def run_sentiment(
             log.exception("batch %s failed", symbols)
             report.failed += symbols
             continue
+        # Rate-limited models stay so for a while: start the next batch with the one that answered.
+        models = [used, *(m for m in models if m != used)]
         _score_batch(conn, batch, reply, used, stamp, closes, report)
     return report
