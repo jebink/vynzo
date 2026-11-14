@@ -21,6 +21,7 @@ next-env.d.ts
 
 # Runtime output
 logs/
+.run/
 data/raw/
 
 # OS / editor

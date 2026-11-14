@@ -1,4 +1,4 @@
-.PHONY: help install db-up db-down tunnel tunnel-stop tunnel-status migrate migrate-status api web test lint
+.PHONY: help install deploy-local deploy-local-stop deploy-dev db-up db-down tunnel tunnel-stop tunnel-status migrate migrate-status api web test lint
 
 help:            ## List targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -6,6 +6,15 @@ help:            ## List targets
 install:         ## Install Python (uv) and JS (pnpm) dependencies
 	uv sync --all-packages
 	pnpm install
+
+deploy-local:    ## Build and run API + web in the background (production mode)
+	scripts/deploy.sh local start
+
+deploy-local-stop: ## Stop the local deploy
+	scripts/deploy.sh local stop
+
+deploy-dev:      ## Deploy the current commit to the dev server
+	scripts/deploy.sh dev
 
 db-up:           ## Start TimescaleDB
 	docker compose -f infra/compose/timescaledb/docker-compose.yml up -d
