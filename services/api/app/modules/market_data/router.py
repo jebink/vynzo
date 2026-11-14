@@ -11,6 +11,7 @@ from app.modules.instruments.service import ListingNotFound
 from app.modules.market_data import service
 from app.modules.market_data.schemas import (
     BarsResponse,
+    ForecastResponse,
     IndicatorsResponse,
     OverviewResponse,
     Timeframe,
@@ -59,5 +60,14 @@ def get_indicators(
 ):
     try:
         return service.get_indicators(conn, exchange, symbol, limit=limit, end=end)
+    except ListingNotFound:
+        raise _not_found() from None
+
+
+@router.get("/{exchange}/{symbol}/forecast", response_model=ForecastResponse)
+def get_forecast(exchange: str, symbol: str, conn: Conn):
+    """What each model would have predicted over past sessions, scored by its error."""
+    try:
+        return service.get_forecast(conn, exchange, symbol)
     except ListingNotFound:
         raise _not_found() from None

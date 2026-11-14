@@ -43,6 +43,16 @@ export interface PriceChartData {
   markers: ChartMarker[] | null;
   /** How many of the newest bars to show initially (the rest is a scroll away). */
   initialBars: number;
+  /** Prediction lines; empty or null hides them. */
+  forecasts?: ForecastLine[] | null;
+}
+
+type Point = { time: string; value: number };
+
+/** One model's past predictions: what it would have said for each session at the time. */
+export interface ForecastLine {
+  color: string;
+  history: Point[];
 }
 
 const MARKER_STYLE: Record<ChartMarkerKind, Omit<SeriesMarkerBar<Time>, "time">> = {
@@ -173,6 +183,19 @@ export function PriceChart({ data, levels = [] }: { data: PriceChartData; levels
       const [pricePane, rsiPane] = chart.panes();
       pricePane?.setStretchFactor(3);
       rsiPane?.setStretchFactor(1);
+    }
+
+    for (const f of data.forecasts ?? []) {
+      if (f.history.length === 0) continue;
+      chart
+        .addSeries(LineSeries, {
+          color: f.color,
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          crosshairMarkerVisible: false,
+        })
+        .setData(f.history);
     }
 
     const barTimes = new Set(data.bars.map((bar) => tradingDate(bar.ts)));

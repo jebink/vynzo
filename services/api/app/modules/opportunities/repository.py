@@ -4,6 +4,7 @@ from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 _ITEM_COLUMNS = """
     o.id, o.listing_id, l.exchange::text AS exchange, l.symbol, c.name AS company_name,
@@ -86,3 +87,29 @@ def recent_closed(
             "ORDER BY x.evaluated_at DESC, o.id DESC LIMIT %(limit)s",
             {"statuses": statuses, "limit": limit},
         ).fetchall()
+
+
+# ---- Stock page backtest cache ----
+
+
+def cached_backtest(
+    conn: psycopg.Connection, listing_id: int, last_bar: Any, version: str
+) -> list[dict] | None:
+    row = conn.execute(
+        "SELECT events FROM stock_backtest_cache "
+        "WHERE listing_id = %s AND last_bar = %s AND version = %s",
+        (listing_id, last_bar, version),
+    ).fetchone()
+    return row[0] if row else None
+
+
+def save_backtest(
+    conn: psycopg.Connection, listing_id: int, last_bar: Any, version: str, events: list[dict]
+) -> None:
+    conn.execute(
+        "INSERT INTO stock_backtest_cache (listing_id, last_bar, version, events) "
+        "VALUES (%s, %s, %s, %s) ON CONFLICT (listing_id) DO UPDATE SET "
+        "last_bar = EXCLUDED.last_bar, version = EXCLUDED.version, events = EXCLUDED.events, "
+        "created_at = now()",
+        (listing_id, last_bar, version, Jsonb(events)),
+    )

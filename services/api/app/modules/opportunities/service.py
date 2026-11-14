@@ -5,6 +5,7 @@ only reads and summarises them.
 """
 
 import json
+import logging
 import math
 import threading
 from collections import OrderedDict
@@ -14,7 +15,10 @@ from typing import Any
 import pandas as pd
 import psycopg
 from analytics_worker.opportunities import stock
+from analytics_worker.opportunities.engine import CALC_VERSION
+from analytics_worker.opportunities.outcomes import OUTCOME_VERSION
 
+from app.core.config import get_settings
 from app.modules.companies import market_cap
 from app.modules.instruments.service import require_listing
 from app.modules.opportunities import repository
@@ -142,8 +146,11 @@ def stock_strategies(conn: psycopg.Connection, exchange: str, symbol: str) -> di
     return {"exchange": listing["exchange"], "symbol": listing["symbol"], **result}
 
 
-# Finished backtests per (listing, last bar): a full-history run takes ~20 s, and a new bar
-# changes the answer. Per process (each uvicorn worker keeps its own).
+# Finished backtests per (listing, last bar, version): a full-history run takes ~20 s, and a new
+# bar or engine change alters the answer. Two tiers: this per-process memory cache, then the
+# shared `stock_backtest_cache` table, which survives restarts and serves every worker.
+BACKTEST_VERSION = f"{CALC_VERSION}/{OUTCOME_VERSION}"
+log = logging.getLogger(__name__)
 _BACKTEST_CACHE: OrderedDict[tuple, list[dict]] = OrderedDict()
 _BACKTEST_CACHE_SIZE = 32
 _cache_lock = threading.Lock()
@@ -171,11 +178,16 @@ def stock_backtest(conn: psycopg.Connection, exchange: str, symbol: str) -> Iter
     """
     listing = require_listing(conn, exchange, symbol)
     inputs = stock.load_inputs(conn, listing["listing_id"], listing["symbol"])
-    key = (listing["listing_id"], inputs.bars.index[-1] if not inputs.bars.empty else None)
+    last_bar = inputs.bars.index[-1].to_pydatetime() if not inputs.bars.empty else None
+    key = (listing["listing_id"], last_bar, BACKTEST_VERSION)
     with _cache_lock:
         cached = _BACKTEST_CACHE.get(key)
         if cached is not None:
             _BACKTEST_CACHE.move_to_end(key)
+    if cached is None and last_bar is not None:
+        cached = repository.cached_backtest(conn, listing["listing_id"], last_bar, BACKTEST_VERSION)
+        if cached is not None:
+            _remember(key, cached)
 
     def lines() -> Iterator[str]:
         if cached is not None:
@@ -187,9 +199,26 @@ def stock_backtest(conn: psycopg.Connection, exchange: str, symbol: str) -> Iter
             event = _jsonable(event)
             events.append(event)
             yield json.dumps(event) + "\n"
-        with _cache_lock:
-            _BACKTEST_CACHE[key] = events
-            while len(_BACKTEST_CACHE) > _BACKTEST_CACHE_SIZE:
-                _BACKTEST_CACHE.popitem(last=False)
+        _remember(key, events)
+        if last_bar is not None:
+            _persist(listing["listing_id"], last_bar, events)
 
     return lines()
+
+
+def _remember(key: tuple, events: list[dict]) -> None:
+    with _cache_lock:
+        _BACKTEST_CACHE[key] = events
+        _BACKTEST_CACHE.move_to_end(key)
+        while len(_BACKTEST_CACHE) > _BACKTEST_CACHE_SIZE:
+            _BACKTEST_CACHE.popitem(last=False)
+
+
+def _persist(listing_id: int, last_bar: Any, events: list[dict]) -> None:
+    """Save a finished run. Own connection: the request's has gone back to the pool by now.
+    A failed save only costs the next visitor a recompute, so it is logged, not raised."""
+    try:
+        with psycopg.connect(get_settings().database_url) as conn:
+            repository.save_backtest(conn, listing_id, last_bar, BACKTEST_VERSION, events)
+    except psycopg.Error:
+        log.exception("could not cache the backtest for listing %s", listing_id)

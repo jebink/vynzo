@@ -7,11 +7,11 @@ from typing import Annotated
 from zoneinfo import ZoneInfo
 
 import psycopg
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.dependencies import get_db
 from app.modules.fundamentals import service
-from app.modules.fundamentals.schemas import CorporateEvent
+from app.modules.fundamentals.schemas import CompanyOverview, CorporateEvent
 
 router = APIRouter(prefix="/fundamentals", tags=["fundamentals"])
 
@@ -27,3 +27,14 @@ def get_events(
 ):
     """Upcoming corporate events (results, ex-dividend) from today (IST) for `days` days."""
     return service.upcoming_events(conn, today=datetime.now(IST).date(), days=days, limit=limit)
+
+
+@router.get("/{exchange}/{symbol}", response_model=CompanyOverview)
+def company_overview(exchange: str, symbol: str, conn: Conn):
+    """Current condition of the company: valuation, growth, debt, ownership, dividends, orders."""
+    try:
+        return service.company_overview(
+            conn, exchange.upper(), symbol.upper(), datetime.now(IST).date()
+        )
+    except service.CompanyNotFound:
+        raise HTTPException(status_code=404, detail="listing not found") from None

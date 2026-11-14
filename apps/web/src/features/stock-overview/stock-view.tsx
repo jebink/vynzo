@@ -6,6 +6,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/status";
 import { SentimentPanel } from "@/features/news-sentiment/sentiment-panel";
 import type { PriceLevel } from "@/features/price-charts/price-chart";
 import { StockChartPanel } from "@/features/price-charts/stock-chart-panel";
+import { CompanyOverview } from "@/features/company-overview/company-overview";
 import { SignalsTable } from "@/features/signals/components/signals-table";
 import { type ChartLevel, LEVEL_COLORS } from "@/features/stock-strategies/model";
 import { StrategyPanel } from "@/features/stock-strategies/strategy-panel";
@@ -17,7 +18,7 @@ import { StockHeader, StockHeaderSkeleton } from "./stock-header";
 
 const STOCK_SIGNAL_LIMIT = 50;
 
-/** The stock page body: header, strategies, price chart and this stock's signals. */
+/** The stock page body: header, then company, strategies, chart and signals beside a news sidebar. */
 export function StockView({ exchange, symbol }: { exchange: Exchange; symbol: string }) {
   const stock = `${exchange}:${symbol}`;
   const listing = useAsync(`listing:${stock}`, (signal) => getListing(exchange, symbol, signal));
@@ -41,10 +42,22 @@ export function StockView({ exchange, symbol }: { exchange: Exchange; symbol: st
       ) : (
         <StockHeaderSkeleton symbol={symbol} exchange={exchange} />
       )}
-      <StrategyPanel key={stock} exchange={exchange} symbol={symbol} onLevels={onLevels} />
-      <StockChartPanel exchange={exchange} symbol={symbol} levels={levels} />
-      <SentimentPanel symbol={symbol} />
-      <StockSignals exchange={exchange} symbol={symbol} />
+      {/* Wide screens: the stock's sections on the left, news in a right sidebar that scrolls on
+          its own and stays in view. Phones: news after the other sections. */}
+      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[minmax(0,1fr)_24rem] 2xl:grid-cols-[minmax(0,1fr)_28rem]">
+        <div className="min-w-0 space-y-8">
+          <CompanyOverview exchange={exchange} symbol={symbol} />
+          <StrategyPanel key={stock} exchange={exchange} symbol={symbol} onLevels={onLevels} />
+          <StockChartPanel exchange={exchange} symbol={symbol} levels={levels} />
+          <StockSignals exchange={exchange} symbol={symbol} />
+        </div>
+        <aside
+          aria-label="News"
+          className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1"
+        >
+          <SentimentPanel symbol={symbol} />
+        </aside>
+      </div>
     </div>
   );
 }

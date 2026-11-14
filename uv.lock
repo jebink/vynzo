@@ -1257,14 +1257,18 @@ name = "vynzo-fundamentals-worker"
 version = "0.1.0"
 source = { editable = "vynzo_batch/fundamentals-worker" }
 dependencies = [
+    { name = "pandas" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic-settings" },
+    { name = "yfinance" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "pandas", specifier = "==3.1.1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pydantic-settings", specifier = ">=2.10" },
+    { name = "yfinance", specifier = "==1.8.0" },
 ]
 
 [[package]]

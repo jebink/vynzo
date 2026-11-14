@@ -1,6 +1,6 @@
 """Pydantic request/response models for market_data (the public API contract)."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel
@@ -83,3 +83,30 @@ class OverviewResponse(BaseModel):
     as_of: datetime | None
     points: int
     stocks: list[StockSnapshot]
+
+
+class ForecastPoint(BaseModel):
+    date: date
+    close: float
+
+
+class ForecastMetrics(BaseModel):
+    mape: float | None = None  # mean absolute % error of walk-forward forecasts
+    hit_rate: float | None = None  # share of forecasts that got the 20-day direction right
+    n: int | None = None  # forecasts scored
+
+
+class ModelForecast(BaseModel):
+    model: str
+    as_of: date
+    horizon: int
+    history: list[ForecastPoint]  # what the model would have predicted over past sessions
+    metrics: ForecastMetrics
+
+
+class ForecastResponse(BaseModel):
+    listing_id: int
+    exchange: str
+    symbol: str
+    best_model: str | None
+    forecasts: list[ModelForecast]

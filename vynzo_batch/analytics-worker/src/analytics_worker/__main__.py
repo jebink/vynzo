@@ -41,6 +41,16 @@ def compute_indicators(args: argparse.Namespace, settings: Settings) -> int:
     return 1 if len(report.failed) > FAIL_RATIO * report.listings else 0
 
 
+def forecast(args: argparse.Namespace, settings: Settings) -> int:
+    """20-session close forecast per listing and model; --limit for a trial run."""
+    from analytics_worker.forecasting.job import run_forecast
+
+    with connect(settings.database_url) as conn:
+        report = run_forecast(conn, limit=args.limit)
+    _emit(report)
+    return 1 if len(report.failed) > FAIL_RATIO * report.listings else 0
+
+
 def high_volume_buy(args: argparse.Namespace, settings: Settings) -> int:
     with connect(settings.database_url) as conn:
         report = run_high_volume_buy(conn, days=args.days, as_of=args.as_of)
@@ -103,14 +113,35 @@ def sentiment(args: argparse.Namespace, settings: Settings) -> int:
     return 1 if report.companies and len(report.failed) > FAIL_RATIO * report.companies else 0
 
 
+def orders(args: argparse.Namespace, settings: Settings) -> int:
+    """Orders and major projects from the last --days days of stored news headlines."""
+    from datetime import timedelta
+
+    from analytics_worker.news.orders import run_orders
+
+    as_of = args.as_of or datetime.now(IST).date()
+    with connect(settings.database_url) as conn:
+        report = run_orders(
+            conn,
+            api_key=settings.openrouter_api_key,
+            model=settings.openrouter_model,
+            as_of=as_of,
+            since=as_of - timedelta(days=max(1, args.days)),
+        )
+    _emit(report)
+    return 1 if report.candidates and len(report.failed) > FAIL_RATIO * report.candidates else 0
+
+
 JOBS = {
     "indicators": compute_indicators,
+    "forecast": forecast,
     "high-volume-buy": high_volume_buy,
     "opportunities": opportunities,
     "opportunity-outcomes": opportunity_outcomes,
     "backtest": backtest,
     "swing": swing,
     "sentiment": sentiment,
+    "orders": orders,
 }
 
 
@@ -135,7 +166,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--workers", type=int, default=8, help="backtest: processes")
     parser.add_argument(
-        "--limit", type=int, default=None, help="sentiment: score only the first N companies"
+        "--limit", type=int, default=None, help="sentiment, forecast: only the first N"
     )
     args = parser.parse_args(argv)
     settings = Settings()

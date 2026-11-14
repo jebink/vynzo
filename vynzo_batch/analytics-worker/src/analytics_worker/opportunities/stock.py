@@ -30,6 +30,7 @@ from analytics_worker.opportunities.backtest import (
     backtest_listing,
     dedupe,
 )
+from analytics_worker.opportunities.diagnosis import features, loss_reasons
 from analytics_worker.opportunities.engine import RECIPES, scan
 from analytics_worker.opportunities.job import _index_bars, _latest_session, _until
 from analytics_worker.opportunities.regime import Regime, market_regime
@@ -108,7 +109,8 @@ def _strategy_items(
     return out
 
 
-def _trade_json(strategy: str, item, benchmark: pd.Series | None) -> dict:
+def _trade_json(strategy: str, item, benchmark: pd.Series | None, ctx=None) -> dict:
+    """`ctx`: (bars, diagnosis features) to explain a loss; None skips that."""
     o = item.outcome
     return {
         "strategy": strategy,
@@ -122,6 +124,7 @@ def _trade_json(strategy: str, item, benchmark: pd.Series | None) -> dict:
         "return_pct": o.return_pct if o else None,
         "sessions_held": o.sessions_held if o else None,
         "excess_vs_nifty_pct": _excess(item, benchmark) if benchmark is not None else None,
+        "loss_reasons": [asdict(r) for r in loss_reasons(item, *ctx, benchmark)] if ctx else [],
     }
 
 
@@ -156,6 +159,7 @@ def summary(items: list, benchmark: pd.Series | None) -> dict:
 def backtest_events(inputs: StockInputs, chunk: int = CHUNK) -> Iterator[dict]:
     """start, one progress event per `chunk` sessions (with the trades it closed), then done."""
     bars, benchmark = inputs.bars, inputs.benchmark
+    ctx = (bars, features(bars)) if not bars.empty else None
     sessions = list(bars.index)
     yield {
         "type": "start",
@@ -174,7 +178,9 @@ def backtest_events(inputs: StockInputs, chunk: int = CHUNK) -> Iterator[dict]:
         trades += result.setup_trades
         new = []
         for strategy, items in _strategy_items(picks, trades).items():
-            new += [_trade_json(strategy, i, benchmark) for i in items[emitted.get(strategy, 0) :]]
+            new += [
+                _trade_json(strategy, i, benchmark, ctx) for i in items[emitted.get(strategy, 0) :]
+            ]
             emitted[strategy] = len(items)
         yield {"type": "progress", "done": start + len(part), "through": part[-1], "trades": new}
     yield {

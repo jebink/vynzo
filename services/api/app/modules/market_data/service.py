@@ -64,3 +64,12 @@ def get_overview(conn: psycopg.Connection, *, exchange: str | None, points: int)
     stocks = [_snapshot(row) for row in rows]
     latest = [s["latest_ts"] for s in stocks if s["latest_ts"] is not None]
     return {"as_of": max(latest, default=None), "points": points, "stocks": stocks}
+
+
+def get_forecast(conn: psycopg.Connection, exchange: str, symbol: str) -> dict[str, Any]:
+    """Latest past-prediction line per model; `best_model` has the lowest MAPE."""
+    listing = require_listing(conn, exchange, symbol)
+    rows = repository.fetch_forecasts(conn, listing["listing_id"])
+    scored = [r for r in rows if r["metrics"].get("mape") is not None]
+    best = min(scored, key=lambda r: r["metrics"]["mape"])["model"] if scored else None
+    return {**_header(listing), "best_model": best, "forecasts": rows}

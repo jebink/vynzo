@@ -126,10 +126,6 @@ export function BacktestReplay({
   const mine = useMemo(() => run.trades.filter((t) => t.strategy === strategy), [run.trades, strategy]);
   const shown = mine.filter((t) => tradeTime(t) <= cursor);
   const live = liveStats(shown);
-  const latest = shown.reduce<BacktestTrade | null>(
-    (best, t) => (best === null || tradeTime(t) >= tradeTime(best) ? t : best),
-    null,
-  );
 
   return (
     <div className="space-y-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
@@ -152,7 +148,7 @@ export function BacktestReplay({
         )}
       </div>
 
-      <div aria-live="polite" className="grid grid-cols-3 gap-2 text-center">
+      <div aria-live="polite" className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
         <Counter label="Trades" value={String(shown.length)} />
         <Counter label="Win rate" value={live.winRate == null ? "—" : `${Math.round(live.winRate * 100)}%`} />
         <Counter
@@ -160,11 +156,12 @@ export function BacktestReplay({
           value={live.total == null ? "—" : `${formatSigned(live.total, 1)}%`}
           tone={live.total == null ? undefined : live.total >= 0 ? "up" : "down"}
         />
+        <Counter label="Losses" value={String(live.losses)} tone={live.losses ? "down" : undefined} />
       </div>
 
-      <TradeTicker trade={latest} />
+      <ReplayChart trades={shown} t0={t0} span={span} cursor={progress} active={!finished} />
 
-      <ReplayChart trades={shown} latest={latest} t0={t0} span={span} cursor={progress} active={!finished} />
+      <LossBreakdown trades={shown} />
 
       {run.status === "running" && received < progress + 0.001 ? (
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -183,9 +180,11 @@ const BUTTON =
 
 function liveStats(trades: BacktestTrade[]) {
   const done = trades.filter(entered);
-  if (!done.length) return { winRate: null, total: null };
+  const losses = done.filter((t) => (t.return_pct ?? 0) < 0).length;
+  if (!done.length) return { winRate: null, total: null, losses };
   const curve = equityPoints(done);
   return {
+    losses,
     winRate: done.filter((t) => (t.return_pct ?? 0) > 0).length / done.length,
     total: (curve[curve.length - 1].e - 1) * 100,
   };
@@ -220,42 +219,47 @@ const RET_H = 150;
 const EQ_TOP = 190;
 const EQ_H = 70;
 
-/** Top: each trade's return as a lollipop at its exit date. Bottom: the compounded equity curve. */
-/** The trade the cursor passed most recently: when it was taken and its entry and exit prices. */
-function TradeTicker({ trade }: { trade: BacktestTrade | null }) {
-  if (!trade) {
-    return <p className="h-10 text-xs text-zinc-500 dark:text-zinc-400">Waiting for the first trade…</p>;
-  }
+/** Hover card for one trade: when it was taken and its entry and exit prices. */
+function TradeTooltip({ trade }: { trade: BacktestTrade }) {
   const r = trade.return_pct;
   const tone = r == null ? "" : r >= 0 ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500";
   return (
-    <div
-      key={`${trade.as_of}:${trade.direction}`}
-      className="bt-ticker flex h-10 flex-wrap items-center gap-x-4 gap-y-0.5 rounded-md bg-zinc-50 px-3 text-sm tabular-nums dark:bg-zinc-900"
-    >
-      <span className="font-semibold">{trade.direction}</span>
-      <span>
-        <span className="text-zinc-500 dark:text-zinc-400">Signal </span>
-        {formatDate(trade.as_of)}
-      </span>
-      <span>
-        <span className="text-zinc-500 dark:text-zinc-400">Entry </span>
-        {trade.entry_at ? `${formatDate(trade.entry_at)} @ ${formatPrice(trade.entry_price)}` : "not filled"}
-      </span>
-      <span>
-        <span className="text-zinc-500 dark:text-zinc-400">Exit </span>
-        {trade.exit_at ? `${formatDate(trade.exit_at)} @ ${formatPrice(trade.exit_price)}` : "—"}
-      </span>
-      <span className={`font-semibold ${tone}`}>
+    <dl className="grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5 text-xs tabular-nums">
+      <dt className="text-zinc-500 dark:text-zinc-400">Signal</dt>
+      <dd className="font-medium">
+        {trade.direction} · {formatDate(trade.as_of)}
+      </dd>
+      <dt className="text-zinc-500 dark:text-zinc-400">Entry</dt>
+      <dd>{trade.entry_at ? `${formatDate(trade.entry_at)} @ ${formatPrice(trade.entry_price)}` : "Not filled"}</dd>
+      <dt className="text-zinc-500 dark:text-zinc-400">Exit</dt>
+      <dd>{trade.exit_at ? `${formatDate(trade.exit_at)} @ ${formatPrice(trade.exit_price)}` : "—"}</dd>
+      <dt className="text-zinc-500 dark:text-zinc-400">Result</dt>
+      <dd className={`font-semibold ${tone}`}>
         {r == null ? OUTCOME_LABEL[trade.outcome] : `${formatSigned(r, 1)}% · ${OUTCOME_LABEL[trade.outcome]}`}
-      </span>
-    </div>
+      </dd>
+      {trade.loss_reasons?.length ? (
+        <>
+          <dt className="text-zinc-500 dark:text-zinc-400">Why</dt>
+          <dd>
+            <ul className="max-w-64 list-disc space-y-0.5 pl-4 whitespace-normal">
+              {trade.loss_reasons.map((reason) => (
+                <li key={reason.code}>{reason.text}</li>
+              ))}
+            </ul>
+          </dd>
+        </>
+      ) : null}
+    </dl>
   );
 }
 
+/** Hover snaps to the nearest trade within this many chart units (of W). */
+const HOVER_RADIUS = 14;
+
+/** Top: each trade's return as a lollipop at its exit date. Bottom: the compounded equity curve.
+ * Hovering (while playing or after) shows the nearest trade's dates and prices. */
 function ReplayChart({
   trades,
-  latest,
   t0,
   span,
   cursor,
@@ -265,10 +269,23 @@ function ReplayChart({
   t0: number;
   span: number;
   cursor: number;
-  latest: BacktestTrade | null;
   active: boolean;
 }) {
+  const [hover, setHover] = useState<{ key: string; px: number } | null>(null);
   const x = (ms: number) => ((ms - t0) / span) * W;
+  const keyOf = (t: BacktestTrade) => `${t.as_of}:${t.direction}`;
+  const hovered = hover ? trades.find((t) => keyOf(t) === hover.key) ?? null : null;
+
+  const onPointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const px = ((event.clientX - rect.left) / rect.width) * W;
+    let best: BacktestTrade | null = null;
+    for (const t of trades) {
+      const d = Math.abs(x(tradeTime(t)) - px);
+      if (d <= HOVER_RADIUS && (best === null || d < Math.abs(x(tradeTime(best)) - px))) best = t;
+    }
+    setHover(best ? { key: keyOf(best), px: x(tradeTime(best)) } : null);
+  };
   const maxAbs = Math.max(5, ...trades.map((t) => Math.abs(t.return_pct ?? 0)));
   const zero = RET_TOP + RET_H / 2;
   const y = (r: number) => zero - (Math.max(-maxAbs, Math.min(maxAbs, r)) / maxAbs) * (RET_H / 2);
@@ -281,18 +298,19 @@ function ReplayChart({
   if (points.length) path.push(`L${(cursor * W).toFixed(1)},${ey(points[points.length - 1].e).toFixed(1)}`);
 
   return (
+    <div className="relative">
     <svg
       viewBox={`0 0 ${W} ${EQ_TOP + EQ_H + 6}`}
-      className="h-auto w-full"
+      className="h-auto w-full touch-none"
       role="img"
-      aria-label={`Backtest replay: ${trades.length} trades so far`}
+      aria-label={`Backtest replay: ${trades.length} trades so far. Hover a trade for its dates and prices.`}
+      onPointerMove={onPointerMove}
+      onPointerLeave={() => setHover(null)}
     >
       <style>{`
         @keyframes bt-pop { from { transform: scale(0); opacity: 0 } to { transform: scale(1); opacity: 1 } }
         .bt-trade { transform-box: fill-box; transform-origin: bottom; animation: bt-pop 380ms cubic-bezier(.2,1.4,.4,1) both }
-        @keyframes bt-fade { from { opacity: 0; transform: translateY(-4px) } to { opacity: 1; transform: none } }
-        .bt-ticker { animation: bt-fade 250ms ease-out both }
-        @media (prefers-reduced-motion: reduce) { .bt-trade, .bt-ticker { animation: none } }
+        @media (prefers-reduced-motion: reduce) { .bt-trade { animation: none } }
       `}</style>
       <line x1={0} x2={W} y1={zero} y2={zero} className="stroke-zinc-300 dark:stroke-zinc-700" strokeDasharray="4 4" />
       <text x={4} y={RET_TOP + 10} className="fill-zinc-400 text-[11px]">
@@ -306,14 +324,16 @@ function ReplayChart({
         const cx = x(tradeTime(t));
         const color = r == null ? "#a1a1aa" : r >= 0 ? "#16a34a" : "#dc2626";
         return (
-          <g key={`${t.as_of}:${t.direction}`} className="bt-trade">
-            <title>
-              {`${t.direction} ${formatDate(t.as_of)} → ${t.exit_at ? formatDate(t.exit_at) : "open"}: ${
-                r == null ? OUTCOME_LABEL[t.outcome] : `${formatSigned(r, 1)}%`
-              }`}
-            </title>
+          <g key={keyOf(t)} className="bt-trade">
             <line x1={cx} x2={cx} y1={zero} y2={y(r ?? 0)} stroke={color} strokeWidth={2} />
-            <circle cx={cx} cy={y(r ?? 0)} r={3.5} fill={color} />
+            <circle
+              cx={cx}
+              cy={y(r ?? 0)}
+              r={hover?.key === keyOf(t) ? 6 : 3.5}
+              fill={color}
+              className={hover?.key === keyOf(t) ? "stroke-white dark:stroke-zinc-900" : undefined}
+              strokeWidth={2}
+            />
           </g>
         );
       })}
@@ -321,7 +341,9 @@ function ReplayChart({
         Equity (compounded)
       </text>
       <path d={path.join(" ")} fill="none" stroke="#0284c7" strokeWidth={2} strokeLinejoin="round" />
-      {latest ? <LatestLabel trade={latest} x={x(tradeTime(latest))} y={y(latest.return_pct ?? 0)} /> : null}
+      {hovered && hover ? (
+        <line x1={hover.px} x2={hover.px} y1={0} y2={EQ_TOP + EQ_H} className="stroke-zinc-400 dark:stroke-zinc-500" strokeDasharray="2 3" />
+      ) : null}
       {active ? (
         <g>
           <line x1={cursor * W} x2={cursor * W} y1={0} y2={EQ_TOP + EQ_H} stroke="#0ea5e9" strokeWidth={6} opacity={0.15} />
@@ -329,6 +351,85 @@ function ReplayChart({
         </g>
       ) : null}
     </svg>
+      {hovered && hover ? (
+        <div
+          className="pointer-events-none absolute top-1 z-10 rounded-md border border-zinc-200 bg-white px-3 py-2 shadow-md dark:border-zinc-700 dark:bg-zinc-900"
+          style={
+            hover.px > W / 2
+              ? { right: `${100 - (hover.px / W) * 100 + 1}%` }
+              : { left: `${(hover.px / W) * 100 + 1}%` }
+          }
+        >
+          <TradeTooltip trade={hovered} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Short names for the loss causes the backtest measures (analytics_worker diagnosis.py). */
+const REASON_LABEL: Record<string, string> = {
+  gap_through_stop: "Gapped through stop",
+  tight_stop: "Stop inside daily noise",
+  gave_back_profit: "Gave back open profit",
+  against_regime: "Against market regime",
+  market_drag: "Market-wide drop",
+  chased_entry: "Chased an extended move",
+  volatility_spike: "Entered in a volatility spike",
+  no_follow_through: "No follow-through",
+  stock_specific: "Stock-specific move",
+};
+
+/** What to try when a cause dominates: the strategy gap it points to. */
+const REASON_FIX: Record<string, string> = {
+  gap_through_stop: "losses run past the stop; size positions for gap risk",
+  tight_stop: "widen the stop to at least 1 ATR",
+  gave_back_profit: "add a trailing stop or take partial profit",
+  against_regime: "skip signals that fight the market regime",
+  market_drag: "add a NIFTY trend filter",
+  chased_entry: "wait for a pullback toward the 20-day average",
+  volatility_spike: "skip or size down when volatility is unusually high",
+  no_follow_through: "shorten the time limit or demand momentum confirmation",
+  stock_specific: "check news and results dates before entering",
+};
+
+/** Live tally of why losing trades lost, so the strategy's weak spot shows as the replay runs.
+ * A trade can have several causes, so the shares can add up to more than 100%. */
+function LossBreakdown({ trades }: { trades: BacktestTrade[] }) {
+  const losers = trades.filter((t) => entered(t) && (t.return_pct ?? 0) < 0);
+  const counts = new Map<string, number>();
+  for (const t of losers) for (const r of t.loss_reasons ?? []) counts.set(r.code, (counts.get(r.code) ?? 0) + 1);
+  const rows = [...counts].sort((a, b) => b[1] - a[1]);
+  if (!losers.length || !rows.length) return null;
+  const [topCode] = rows[0];
+  return (
+    <div className="space-y-2">
+      <h4 className="text-sm font-semibold">
+        Why trades lost <span className="font-normal text-zinc-500 dark:text-zinc-400">({losers.length} losing trades)</span>
+      </h4>
+      <ul className="space-y-1.5">
+        {rows.map(([code, n]) => {
+          const share = n / losers.length;
+          return (
+            <li key={code} className="grid grid-cols-[11rem_1fr_3rem] items-center gap-2 text-xs">
+              <span className="truncate">{REASON_LABEL[code] ?? code}</span>
+              <span className="h-2 rounded-full bg-zinc-100 dark:bg-zinc-800">
+                <span
+                  className="block h-2 rounded-full bg-red-500/70 transition-[width] duration-300"
+                  style={{ width: `${Math.round(share * 100)}%` }}
+                />
+              </span>
+              <span className="text-right tabular-nums text-zinc-500 dark:text-zinc-400">{Math.round(share * 100)}%</span>
+            </li>
+          );
+        })}
+      </ul>
+      {REASON_FIX[topCode] ? (
+        <p className="text-xs text-zinc-600 dark:text-zinc-400">
+          Biggest gap: <span className="font-medium">{REASON_LABEL[topCode]}</span>. Try: {REASON_FIX[topCode]}.
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -406,7 +507,14 @@ function Results({ summary, trades }: { summary: BacktestSummary | undefined; tr
                 <td className="px-3 py-1.5">{t.direction}</td>
                 <td className="px-3 py-1.5 text-right tabular-nums">{formatPrice(t.entry_price)}</td>
                 <td className="px-3 py-1.5 text-right tabular-nums">{formatPrice(t.exit_price)}</td>
-                <td className="px-3 py-1.5">{OUTCOME_LABEL[t.outcome]}</td>
+                <td className="px-3 py-1.5">
+                  {OUTCOME_LABEL[t.outcome]}
+                  {t.loss_reasons?.length ? (
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {t.loss_reasons.map((reason) => REASON_LABEL[reason.code] ?? reason.code).join(" · ")}
+                    </div>
+                  ) : null}
+                </td>
                 <td
                   className={`px-3 py-1.5 text-right font-medium tabular-nums ${
                     t.return_pct == null ? "" : t.return_pct >= 0 ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
@@ -429,20 +537,3 @@ function Results({ summary, trades }: { summary: BacktestSummary | undefined; tr
   );
 }
 
-/** On-chart callout at the newest trade: its entry and exit price. Flips left near the edge. */
-function LatestLabel({ trade, x, y }: { trade: BacktestTrade; x: number; y: number }) {
-  if (trade.entry_price == null) return null;
-  const text = `${formatPrice(trade.entry_price)} → ${trade.exit_price == null ? "open" : formatPrice(trade.exit_price)}`;
-  const left = x > W - 160;
-  const ty = Math.max(RET_TOP + 12, Math.min(RET_TOP + RET_H - 2, y - 8));
-  return (
-    <text
-      x={left ? x - 8 : x + 8}
-      y={ty}
-      textAnchor={left ? "end" : "start"}
-      className="fill-zinc-700 text-[12px] font-medium dark:fill-zinc-200"
-    >
-      {text}
-    </text>
-  );
-}

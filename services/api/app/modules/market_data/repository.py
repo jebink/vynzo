@@ -104,3 +104,15 @@ def fetch_overview(
         params["exchange"] = exchange.upper()
     with conn.cursor(row_factory=dict_row) as cur:
         return cur.execute(query, params).fetchall()
+
+
+def fetch_forecasts(conn: psycopg.Connection, listing_id: int) -> list[dict[str, Any]]:
+    """Each model's forecast from the listing's newest forecast run."""
+    query = """
+        SELECT model, as_of, horizon, history, metrics FROM price_forecast
+        WHERE listing_id = %(id)s
+          AND as_of = (SELECT max(as_of) FROM price_forecast WHERE listing_id = %(id)s)
+        ORDER BY model
+    """
+    with conn.cursor(row_factory=dict_row) as cur:
+        return cur.execute(query, {"id": listing_id}).fetchall()

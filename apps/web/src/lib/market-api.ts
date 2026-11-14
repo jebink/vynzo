@@ -2,8 +2,11 @@
 import { API_BASE_URL, ApiError, apiGet, apiPut } from "@/lib/api";
 import type {
   BacktestEvent,
+  CompanyOverview,
+  FocusResponse,
   BarsResponse,
   CorporateEvent,
+  ForecastResponse,
   Exchange,
   IndicatorsResponse,
   Listing,
@@ -110,6 +113,10 @@ export function getSignalTypes(signal?: AbortSignal): Promise<SignalTypeSummary[
   return apiGet(`/v1/signals/types`, opts(signal));
 }
 
+export function getForecast(exchange: Exchange, symbol: string, signal?: AbortSignal): Promise<ForecastResponse> {
+  return apiGet(`/v1/market-data/${stockPath(exchange, symbol)}/forecast`, opts(signal));
+}
+
 export function getUpcomingEvents(
   params: { days?: number; limit?: number },
   signal?: AbortSignal,
@@ -183,4 +190,20 @@ export async function streamBacktest(
     for (const line of lines) if (line.trim()) onEvent(JSON.parse(line) as BacktestEvent);
   }
   if (buffer.trim()) onEvent(JSON.parse(buffer) as BacktestEvent);
+}
+
+// ---- Need to focus ----
+
+export function getFocus(signal?: AbortSignal): Promise<FocusResponse> {
+  return apiGet("/v1/focus", opts(signal));
+}
+
+// ---- Company overview ----
+
+export function getCompanyOverview(
+  exchange: Exchange,
+  symbol: string,
+  signal?: AbortSignal,
+): Promise<CompanyOverview> {
+  return apiGet(`/v1/fundamentals/${stockPath(exchange, symbol)}`, opts(signal));
 }

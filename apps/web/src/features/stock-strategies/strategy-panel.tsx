@@ -31,10 +31,20 @@ export function StrategyPanel({
   const data = useAsync(`stock-strategies:${exchange}:${symbol}`, (signal) =>
     getStockStrategies(exchange, symbol, signal),
   );
-  const [selected, setSelected] = useState<StrategyTag | null>(null);
+  // undefined = the user hasn't chosen yet, so the default tag is shown (and animated); null = none.
+  const [chosen, setChosen] = useState<StrategyTag | null | undefined>(undefined);
   const { run, start } = useBacktest(exchange, symbol);
-  const [animateFor, setAnimateFor] = useState<string | null>(null);
+  const [chosenAnimate, setAnimateFor] = useState<string | null | undefined>(undefined);
   const [replays, setReplays] = useState(0);
+  const fallback = data.data ? defaultTag(data.data) : null;
+  const selected = chosen === undefined ? fallback : chosen;
+  const animateFor = chosenAnimate === undefined ? (fallback?.id ?? null) : chosenAnimate;
+
+  // Run the backtest as soon as there is a default strategy to show it for.
+  const hasDefault = fallback !== null;
+  useEffect(() => {
+    if (hasDefault) start();
+  }, [hasDefault, start]);
 
   useEffect(() => {
     const pick = selected && data.data ? data.data.horizons[selected.horizon]?.pick ?? null : null;
@@ -42,7 +52,7 @@ export function StrategyPanel({
   }, [selected, data.data, onLevels]);
 
   const select = (tag: StrategyTag) => {
-    setSelected((prev) => (prev?.id === tag.id ? null : tag));
+    setChosen(selected?.id === tag.id ? null : tag);
     setAnimateFor(null);
   };
   const backtest = (tag: StrategyTag) => {
@@ -71,7 +81,9 @@ export function StrategyPanel({
         <LoadingState label="Scoring this stock…" />
       ) : (
         <>
-          <div className="grid gap-3 md:grid-cols-3">
+          {/* Wide screens: horizons | why side by side, the backtest full width below. */}
+          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+          <div className="space-y-3">
             {HORIZONS.map((h) => (
               <HorizonColumn
                 key={h.id}
@@ -90,7 +102,10 @@ export function StrategyPanel({
               onBacktest={() => backtest(selected)}
               backtestBusy={run.status === "running"}
             />
-          ) : null}
+          ) : (
+            <Placeholder text="Select a strategy tag to see why the stock falls under it." />
+          )}
+          <div className="lg:col-span-2">
           {selected && run.status !== "idle" ? (
             run.status === "error" ? (
               <ErrorState title="Backtest failed" error={new Error(run.error ?? "unknown error")} />
@@ -104,7 +119,11 @@ export function StrategyPanel({
                 onReplay={() => backtest(selected)}
               />
             )
-          ) : null}
+          ) : (
+            <Placeholder text="Run “Backtest on all history” to replay the strategy here." />
+          )}
+          </div>
+          </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             For research only, not investment advice. Rules-based, from end-of-day prices.
           </p>
@@ -211,7 +230,7 @@ function StrategyDetail({
         </button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="space-y-4">
         {pick && !tag.setup ? (
           <section aria-label="Factor scores" className="space-y-2">
             {pick.factors.map((factor) => (
@@ -265,4 +284,24 @@ function List({ title, items }: { title: string; items: string[] }) {
       </ul>
     </div>
   );
+}
+
+function Placeholder({ text }: { text: string }) {
+  return (
+    <div className="hidden min-h-32 items-center justify-center rounded-lg border border-dashed border-zinc-300 p-4 text-center text-sm text-zinc-500 lg:flex dark:border-zinc-700 dark:text-zinc-400">
+      {text}
+    </div>
+  );
+}
+
+/** The strategy shown on load: Swing first, then Long-term, then Intraday; within a horizon, a tag
+ * pointing the same way as the horizon's pick before the others. */
+function defaultTag(data: StockStrategiesResponse): StrategyTag | null {
+  for (const horizon of ["swing", "long_term", "next_session"] as const) {
+    const tags = tagsFor(data, horizon);
+    const pick = data.horizons[horizon]?.pick;
+    const aligned = tags.find((t) => pick && t.direction === pick.direction);
+    if (aligned ?? tags[0]) return aligned ?? tags[0];
+  }
+  return null;
 }

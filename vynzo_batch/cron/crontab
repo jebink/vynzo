@@ -12,7 +12,7 @@ VYNZO_ROOT=/home/admin/vynzo
 # Mon-Fri 17:00 IST: EOD ingest, then indicators and signals, then Market opportunities (close
 # open picks against today's bar, then rank today's), then the freshness check.
 # high-volume-buy scans the last 3 sessions (idempotent), so a skipped day heals itself.
-30 11 * * 1-5  $VYNZO_ROOT/vynzo_batch/cron/run_job.sh market_ingestion eod && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker indicators && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker high-volume-buy --days 3 && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker opportunity-outcomes && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker opportunities && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh market_ingestion freshness
+30 11 * * 1-5  $VYNZO_ROOT/vynzo_batch/cron/run_job.sh market_ingestion eod && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker indicators && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker forecast && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker high-volume-buy --days 3 && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker opportunity-outcomes && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker opportunities && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh market_ingestion freshness
 
 # Every 3 hours (weekends too; news doesn't stop; reruns replace the day's rows): news sentiment per company from Google News
 # and Yahoo Finance headlines, scored through OpenRouter (needs OPENROUTER_API_KEY in .env).
@@ -25,6 +25,12 @@ VYNZO_ROOT=/home/admin/vynzo
 # Daily 06:15 IST: upcoming quarterly results and ex-dividend dates per company from Yahoo Finance
 # (the dashboard's upcoming events panel).
 45 0 * * *     $VYNZO_ROOT/vynzo_batch/cron/run_job.sh market_ingestion events
+
+# Daily 08:15 IST, after news sentiment: orders and major projects from the stored headlines.
+45 2 * * *     $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker orders --days 2
+
+# Mon-Fri 18:00 IST, after the EOD chain: company fundamentals, annual figures and dividends.
+30 12 * * 1-5  $VYNZO_ROOT/vynzo_batch/cron/run_job.sh fundamentals_worker fundamentals
 
 # Daily 18:30 IST: data freshness (pushes to Uptime Kuma when KUMA_PUSH_URL is set)
 0 13 * * *     $VYNZO_ROOT/vynzo_batch/cron/run_job.sh market_ingestion freshness

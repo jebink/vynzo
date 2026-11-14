@@ -5,6 +5,8 @@ description = "Financial statements and corporate actions ingestion."
 requires-python = ">=3.13"
 dependencies = [
     "psycopg[binary]>=3.2",
+    "yfinance==1.8.0",
+    "pandas==3.1.1",
     "pydantic-settings>=2.10",
 ]
 

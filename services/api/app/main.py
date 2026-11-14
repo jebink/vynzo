@@ -12,6 +12,7 @@ from app.integrations.postgres import create_pool
 from app.middleware.error_handler import register_error_handlers
 from app.middleware.request_id import RequestIdMiddleware
 from app.modules.companies.router import router as companies_router
+from app.modules.focus.router import router as focus_router
 from app.modules.fundamentals.router import router as fundamentals_router
 from app.modules.instruments.router import router as instruments_router
 from app.modules.market_data.router import router as market_data_router
@@ -50,6 +51,7 @@ for router in (
     fundamentals_router,
     signals_router,
     stock_grading_router,
+    focus_router,
 ):
     app.include_router(router, prefix="/v1")
 

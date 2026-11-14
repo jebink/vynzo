@@ -359,6 +359,13 @@ export interface BacktestTrade {
   return_pct: number | null;
   sessions_held: number | null;
   excess_vs_nifty_pct: number | null;
+  /** Measured causes of a losing entered trade; empty otherwise (and absent on old cached runs). */
+  loss_reasons?: LossReason[];
+}
+
+export interface LossReason {
+  code: string;
+  text: string;
 }
 
 export interface BacktestSummary {
@@ -392,4 +399,115 @@ export interface CorporateEvent {
   event_date: string; // YYYY-MM-DD
   details: { amount?: number; eps_estimate?: number; window_end?: string };
   source: string;
+}
+
+/** `GET /v1/market-data/{exchange}/{symbol}/forecast`: latest close forecast per model. */
+export interface ModelForecast {
+  model: string;
+  as_of: string; // date of the last bar the forecast starts from
+  horizon: number;
+  /** What the model would have predicted over past sessions (forecasts made every `horizon`). */
+  history: { date: string; close: number }[];
+  /** Walk-forward score: mean absolute % error and share of 20-day directions called right. */
+  metrics: { mape: number | null; hit_rate: number | null; n: number | null };
+}
+
+export interface ForecastResponse {
+  listing_id: number;
+  exchange: Exchange;
+  symbol: string;
+  best_model: string | null;
+  forecasts: ModelForecast[];
+}
+
+// ---- Need to focus (dashboard) ----
+
+export interface FocusPart {
+  points: number;
+  max: number;
+  reason: string;
+}
+
+/** `GET /v1/focus`: the one stock that most needs attention now. */
+export interface FocusResponse {
+  as_of: string | null;
+  stock: {
+    listing_id: number;
+    exchange: Exchange;
+    symbol: string;
+    company_name: string | null;
+    sector: string | null;
+    /** 0-100: news (45) + market move (35) + upcoming event (20). */
+    score: number;
+    grade: "A" | "B" | "C" | "D";
+    parts: Record<"news" | "market" | "event", FocusPart>;
+    news: {
+      label: string | null;
+      sentiment: number | null;
+      confidence: number | null;
+      summary: string | null;
+      headline_count: number;
+      headlines: { title: string; url: string; source: string; publisher: string | null; published: string | null }[];
+    } | null;
+    performance: {
+      close: number | null;
+      change_1d_pct: number | null;
+      change_5d_pct: number | null;
+      change_20d_pct: number | null;
+      move_sigma: number | null;
+      rvol: number | null;
+    };
+    event: { type: string; date: string; days_away: number; details: Record<string, unknown> } | null;
+  } | null;
+}
+
+// ---- Company overview (stock page) ----
+
+/** `GET /v1/fundamentals/{exchange}/{symbol}`. Fractions for growth/margins/ROE/holdings; INR amounts. */
+export interface CompanyOverview {
+  exchange: Exchange;
+  symbol: string;
+  company_name: string | null;
+  sector: string | null;
+  industry: string | null;
+  price: number | null;
+  price_as_of: string | null;
+  market_cap: number | null;
+  fundamentals_as_of: string | null;
+  metrics: {
+    trailing_pe: number | null;
+    forward_pe: number | null;
+    price_to_book: number | null;
+    revenue_ttm: number | null;
+    revenue_growth: number | null;
+    net_income_ttm: number | null;
+    profit_margin: number | null;
+    return_on_equity: number | null;
+    total_debt: number | null;
+    total_cash: number | null;
+    debt_to_equity: number | null;
+    current_ratio: number | null;
+    free_cash_flow: number | null;
+  };
+  industry_pe: { median: number | null; peers: number; basis: "industry" | "sector" | null; group: string | null };
+  ownership: { insider_pct: number | null; institutional_pct: number | null };
+  dividends: { ttm_per_share: number | null; yield_pct: number | null; payouts: { ex_date: string; amount: number }[] };
+  annual: { fiscal_year_end: string; revenue: number | null; net_income: number | null; total_debt: number | null }[];
+  /** Highest fiscal-year-end debt minus the latest (balance sheet); 0 when the latest is the peak. */
+  debt_cleared: {
+    peak: number;
+    peak_year_end: string;
+    latest: number;
+    latest_year_end: string;
+    cleared: number;
+    cleared_pct: number;
+  } | null;
+  orders: {
+    reported_on: string;
+    counterparty: string | null;
+    description: string;
+    value_inr: number | null;
+    source_url: string;
+    headline: string;
+  }[];
 }

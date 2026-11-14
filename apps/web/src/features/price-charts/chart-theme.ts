@@ -14,6 +14,10 @@ export const CHART_COLORS = {
   highVolumeBuy: "#06b6d4", // cyan-500
   swingBuy: "#16a34a",
   swingSell: "#dc2626",
+  // Forecast models: bright and distinct from the EMAs and each other.
+  forecastDrift: "#14b8a6", // teal-500
+  forecastHolt: "#ec4899", // pink-500
+  forecastRidge: "#f97316", // orange-500
 } as const;
 
 /** Layout, grid and scale colours that follow the app's zinc light/dark palette. */
