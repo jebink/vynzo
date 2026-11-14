@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useId, useMemo, useState } from "react";
+import { CAP_OPTIONS, type CapFilter, matchesCompany, SectorSelect } from "@/components/company-filters";
 import { ExchangeBadge } from "@/components/exchange-badge";
 import { SegmentedControl } from "@/components/segmented-control";
 import { EmptyState, ErrorState, LoadingState } from "@/components/status";
@@ -54,6 +55,8 @@ export function StockDirectory() {
   const [text, setText] = useState("");
   const [exchange, setExchange] = useState<ExchangeFilter>("ALL");
   const [sort, setSort] = useState<SortKey>("symbol");
+  const [cap, setCap] = useState<CapFilter>("all");
+  const [sector, setSector] = useState<string>("any");
 
   const overview = useAsync("overview", (signal) =>
     getOverview({ points: SPARKLINE_POINTS }, signal),
@@ -64,6 +67,7 @@ export function StockDirectory() {
     const needle = text.trim().toUpperCase();
     return all
       .filter((s) => exchange === "ALL" || s.exchange === exchange)
+      .filter((s) => matchesCompany(s, cap, sector))
       .filter(
         (s) =>
           !needle ||
@@ -71,7 +75,7 @@ export function StockDirectory() {
           (s.company_name ?? "").toUpperCase().includes(needle),
       )
       .sort(SORTERS[sort]);
-  }, [overview.data, text, exchange, sort]);
+  }, [overview.data, text, exchange, sort, cap, sector]);
 
   const total = overview.data?.stocks.length ?? 0;
   const advancing = overview.data?.stocks.filter((s) => (s.change_pct ?? 0) > 0).length ?? 0;
@@ -111,6 +115,8 @@ export function StockDirectory() {
           className="w-full max-w-xs rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm outline-none placeholder:text-zinc-400 focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:border-zinc-700 dark:bg-zinc-900 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-800"
         />
         <SegmentedControl label="Exchange" options={EXCHANGE_OPTIONS} value={exchange} onChange={setExchange} />
+        <SegmentedControl label="Market cap" options={CAP_OPTIONS} value={cap} onChange={setCap} />
+        <SectorSelect items={overview.data?.stocks ?? []} value={sector} onChange={setSector} />
         <SegmentedControl label="Sort by" options={SORT_OPTIONS} value={sort} onChange={setSort} />
       </div>
 

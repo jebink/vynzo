@@ -110,6 +110,8 @@ export interface IndicatorsResponse {
 }
 
 /** One ingested stock in `GET /v1/market-data/overview`. `closes` are daily, oldest first. */
+export type CapCategory = "large" | "mid" | "small";
+
 export interface StockSnapshot {
   listing_id: number;
   exchange: Exchange;
@@ -123,6 +125,10 @@ export interface StockSnapshot {
   change_pct: number | null;
   volume: number | null;
   closes: number[];
+  sector: string | null;
+  /** INR: shares outstanding × last close; null until the profiles job has run. */
+  market_cap: number | null;
+  cap_category: CapCategory | null;
 }
 
 /** `GET /v1/market-data/overview` */
@@ -236,6 +242,10 @@ export interface Opportunity {
   /** Swing only; empty for other horizons and for picks made before model opp-1.5.0. */
   setups: SetupTag[];
   calc_version: string;
+  sector: string | null;
+  /** INR: shares outstanding × price; null until the profiles job has run. */
+  market_cap: number | null;
+  cap_category: CapCategory | null;
 }
 
 /** `GET /v1/opportunities` */

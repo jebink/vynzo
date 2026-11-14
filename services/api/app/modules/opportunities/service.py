@@ -8,6 +8,7 @@ from typing import Any
 
 import psycopg
 
+from app.modules.companies import market_cap
 from app.modules.opportunities import repository
 
 HORIZONS = ("next_session", "swing", "long_term")
@@ -36,6 +37,7 @@ def current(conn: psycopg.Connection) -> dict[str, Any]:
             "horizons": horizons,
         }
     for row in repository.picks_for(conn, session["as_of"]):
+        row.update(market_cap(row.pop("shares_outstanding"), row["price"]))
         horizons[row["horizon"]].append(row)
     return {
         "as_of": session["as_of"],

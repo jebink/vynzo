@@ -10,6 +10,7 @@ _ITEM_COLUMNS = """
     o.horizon, o.as_of, o.direction, o.status, o.score, o.confidence, o.price, o.entry_low,
     o.entry_high, o.stop_loss, o.targets, o.risk_reward, o.holding_period, o.supports,
     o.resistances, o.reasons, o.factors, o.risks, o.invalidation, o.setups, o.calc_version
+    , c.sector, c.shares_outstanding
 """
 _FROM = (
     "FROM opportunity o JOIN listings l USING (listing_id) LEFT JOIN companies c USING (company_id)"

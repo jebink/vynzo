@@ -55,6 +55,9 @@ class OpportunityItem(BaseModel):
     invalidation: list[str]
     setups: list[SetupTag]
     calc_version: str
+    sector: str | None
+    market_cap: float | None  # INR, shares outstanding x price
+    cap_category: Literal["large", "mid", "small"] | None
 
 
 class OpportunitiesResponse(BaseModel):

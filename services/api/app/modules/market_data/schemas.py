@@ -74,6 +74,9 @@ class StockSnapshot(BaseModel):
     change_pct: float | None
     volume: int | None
     closes: list[float]
+    sector: str | None
+    market_cap: float | None  # INR, shares outstanding x last close
+    cap_category: Literal["large", "mid", "small"] | None
 
 
 class OverviewResponse(BaseModel):

@@ -8,7 +8,7 @@ from market_ingestion.pipeline import EodReport
 
 
 def test_jobs_registered():
-    assert set(JOBS) == {"eod", "backfill", "freshness", "sync-reference"}
+    assert set(JOBS) == {"eod", "backfill", "freshness", "sync-reference", "profiles"}
 
 
 def test_unknown_job_rejected():

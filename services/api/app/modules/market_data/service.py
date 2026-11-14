@@ -5,6 +5,7 @@ from typing import Any
 
 import psycopg
 
+from app.modules.companies import market_cap
 from app.modules.instruments.service import require_listing
 from app.modules.market_data import repository
 
@@ -45,8 +46,10 @@ def _snapshot(row: dict[str, Any]) -> dict[str, Any]:
     close = closes[-1] if closes else None
     previous = closes[-2] if len(closes) > 1 else None
     change_pct = (close - previous) / previous * 100 if close is not None and previous else None
+    shares = row.pop("shares_outstanding", None)
     return {
         **row,
+        **market_cap(shares, close),
         "closes": closes,
         "close": close,
         "previous_close": previous,

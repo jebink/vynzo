@@ -74,7 +74,7 @@ def fetch_overview(
     query = sql.SQL("""
         WITH ingested AS (
             SELECT l.listing_id, l.exchange::text AS exchange, l.symbol, l.kind,
-                   c.name AS company_name, l.is_active
+                   c.name AS company_name, l.is_active, c.sector, c.shares_outstanding
             FROM listings l
             LEFT JOIN companies c USING (company_id)
             WHERE EXISTS (SELECT 1 FROM provider_symbols p WHERE p.listing_id = l.listing_id)
@@ -88,13 +88,15 @@ def fetch_overview(
               AND b.ts > (SELECT max(ts) FROM ohlcv_1d) - make_interval(days => %(lookback)s)
         )
         SELECT i.listing_id, i.exchange, i.symbol, i.kind, i.company_name, i.is_active,
+               i.sector, i.shares_outstanding,
                max(r.ts) AS latest_ts,
                coalesce(array_agg(r.close ORDER BY r.ts) FILTER (WHERE r.ts IS NOT NULL),
                         '{{}}') AS closes,
                (array_agg(r.volume ORDER BY r.ts DESC))[1] AS volume
         FROM ingested i
         LEFT JOIN recent r ON r.listing_id = i.listing_id AND r.rn <= %(points)s
-        GROUP BY i.listing_id, i.exchange, i.symbol, i.kind, i.company_name, i.is_active
+        GROUP BY i.listing_id, i.exchange, i.symbol, i.kind, i.company_name, i.is_active,
+                 i.sector, i.shares_outstanding
         ORDER BY i.symbol, i.exchange
     """).format(exchange_filter=exchange_filter)
     params: dict[str, Any] = {"points": points, "lookback": lookback_days}

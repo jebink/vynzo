@@ -14,6 +14,7 @@ from typing import Any
 from market_ingestion.config import REPO_ROOT, Settings
 from market_ingestion.db import connect
 from market_ingestion.freshness import check_freshness
+from market_ingestion.instruments.profiles import sync_profiles
 from market_ingestion.instruments.reference import sync_reference
 from market_ingestion.instruments.registry import find_listing
 from market_ingestion.pipeline import EodReport, run_backfill, run_eod
@@ -81,11 +82,20 @@ def sync_reference_job(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+def profiles(args: argparse.Namespace, settings: Settings) -> int:
+    """Sector, industry and shares outstanding per company from Yahoo Finance."""
+    with connect(settings.database_url) as conn:
+        report = sync_profiles(conn)
+    _emit(report)
+    return 1 if len(report.failed) > FAIL_RATIO * report.companies else 0
+
+
 JOBS = {
     "eod": eod_ingest,
     "backfill": backfill,
     "freshness": freshness,
     "sync-reference": sync_reference_job,
+    "profiles": profiles,
 }
 
 

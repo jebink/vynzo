@@ -18,6 +18,10 @@ VYNZO_ROOT=/home/admin/vynzo
 # and Yahoo Finance headlines, scored through OpenRouter (needs OPENROUTER_API_KEY in .env).
 0 2 * * *      $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker sentiment
 
+# Sundays 06:00 IST: company sector, industry and shares outstanding from Yahoo Finance
+# (feeds market cap and the sector filter on the Market screen).
+30 0 * * 0     $VYNZO_ROOT/vynzo_batch/cron/run_job.sh market_ingestion profiles
+
 # Daily 18:30 IST: data freshness (pushes to Uptime Kuma when KUMA_PUSH_URL is set)
 0 13 * * *     $VYNZO_ROOT/vynzo_batch/cron/run_job.sh market_ingestion freshness
 
