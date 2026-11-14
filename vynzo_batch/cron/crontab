@@ -14,9 +14,9 @@ VYNZO_ROOT=/home/admin/vynzo
 # high-volume-buy scans the last 3 sessions (idempotent), so a skipped day heals itself.
 30 11 * * 1-5  $VYNZO_ROOT/vynzo_batch/cron/run_job.sh market_ingestion eod && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker indicators && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker high-volume-buy --days 3 && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker opportunity-outcomes && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker opportunities && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh market_ingestion freshness
 
-# Daily 07:30 IST (weekends too; news doesn't stop): news sentiment per company from Google News
+# Every 3 hours (weekends too; news doesn't stop; reruns replace the day's rows): news sentiment per company from Google News
 # and Yahoo Finance headlines, scored through OpenRouter (needs OPENROUTER_API_KEY in .env).
-0 2 * * *      $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker sentiment
+0 */3 * * *    $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker sentiment
 
 # Sundays 06:00 IST: company sector, industry and shares outstanding from Yahoo Finance
 # (feeds market cap and the sector filter on the Market screen).

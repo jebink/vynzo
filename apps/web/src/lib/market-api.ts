@@ -1,6 +1,7 @@
 // Typed fetchers for the market data and signals API (docs/api/market-data-and-signals.md).
-import { apiGet, apiPut } from "@/lib/api";
+import { API_BASE_URL, ApiError, apiGet, apiPut } from "@/lib/api";
 import type {
+  BacktestEvent,
   BarsResponse,
   Exchange,
   IndicatorsResponse,
@@ -15,6 +16,7 @@ import type {
   SelectionStatus,
   Signal,
   SignalTypeSummary,
+  StockStrategiesResponse,
   SwingSignal,
   Timeframe,
 } from "@/lib/types";
@@ -140,4 +142,37 @@ export function getOpportunityPerformance(
   signal?: AbortSignal,
 ): Promise<PerformanceResponse> {
   return apiGet(`/v1/opportunities/performance${query({ status })}`, opts(signal));
+}
+
+// ---- Stock page strategies and backtest ----
+
+export function getStockStrategies(
+  exchange: Exchange,
+  symbol: string,
+  signal?: AbortSignal,
+): Promise<StockStrategiesResponse> {
+  return apiGet(`/v1/opportunities/stocks/${stockPath(exchange, symbol)}`, opts(signal));
+}
+
+/** Streams the full-history backtest, calling `onEvent` per NDJSON line as it arrives. */
+export async function streamBacktest(
+  exchange: Exchange,
+  symbol: string,
+  onEvent: (event: BacktestEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const path = `/v1/opportunities/stocks/${stockPath(exchange, symbol)}/backtest`;
+  const response = await fetch(`${API_BASE_URL}${path}`, { signal });
+  if (!response.ok || !response.body) throw new ApiError("GET", path, response.status);
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += value;
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) if (line.trim()) onEvent(JSON.parse(line) as BacktestEvent);
+  }
+  if (buffer.trim()) onEvent(JSON.parse(buffer) as BacktestEvent);
 }

@@ -7,7 +7,7 @@ import { useAsync } from "@/hooks/use-async";
 import { getBars, getIndicators, getSignals, getSwingSignals } from "@/lib/market-api";
 import { tradingDate } from "@/lib/format";
 import { HIGH_VOLUME_BUY, type Exchange, type Timeframe } from "@/lib/types";
-import { PriceChart, type ChartMarker, type PriceChartData } from "./price-chart";
+import { PriceChart, type ChartMarker, type PriceChartData, type PriceLevel } from "./price-chart";
 
 type ChartRange = "1D" | "1W" | "1M";
 
@@ -27,7 +27,16 @@ const BAR_LIMIT = 500;
 const MARKER_LIMIT = 500;
 
 /** Timeframe toggle plus the price chart; EMA/RSI overlays and signal markers are daily-only. */
-export function StockChartPanel({ exchange, symbol }: { exchange: Exchange; symbol: string }) {
+export function StockChartPanel({
+  exchange,
+  symbol,
+  levels,
+}: {
+  exchange: Exchange;
+  symbol: string;
+  /** Strategy levels to draw on the daily chart. */
+  levels?: PriceLevel[];
+}) {
   const [range, setRange] = useState<ChartRange>("1D");
   const { timeframe, initialBars } = RANGES[range];
   const daily = range === "1D";
@@ -95,7 +104,7 @@ export function StockChartPanel({ exchange, symbol }: { exchange: Exchange; symb
           className="h-[440px] content-center"
         />
       ) : (
-        <PriceChart data={chartData} />
+        <PriceChart data={chartData} levels={daily ? levels : undefined} />
       )}
 
       {overlayIssues.length > 0 && !loading ? (

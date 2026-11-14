@@ -296,3 +296,89 @@ export interface PerformanceResponse {
   horizons: Record<Horizon, HorizonPerformance>;
   recent: ClosedPick[];
 }
+
+// ---- Stock page strategies and backtest ----
+
+/** A named swing setup detected at the last close, in either direction. */
+export interface StockSetup {
+  key: string;
+  variant: string;
+  direction: Direction;
+  reason: string;
+  stop: number;
+}
+
+export interface StockPick {
+  direction: Direction;
+  status: "actionable" | "watch";
+  score: number;
+  confidence: Confidence;
+  price: number;
+  entry_low: number;
+  entry_high: number;
+  stop_loss: number;
+  targets: number[];
+  risk_reward: number;
+  holding_period: string;
+  supports: number[];
+  resistances: number[];
+  reasons: string[];
+  factors: FactorScore[];
+  risks: string[];
+  invalidation: string[];
+  setups: StockSetup[];
+}
+
+/** The first gate a horizon failed; factors are empty when it failed before scoring. */
+export interface Rejection {
+  reason: string;
+  factors: FactorScore[];
+  score: number | null;
+}
+
+/** `GET /v1/opportunities/stocks/{exchange}/{symbol}` */
+export interface StockStrategiesResponse {
+  exchange: Exchange;
+  symbol: string;
+  as_of: string | null;
+  regime: MarketRegime | null;
+  horizons: Record<Horizon, { pick: StockPick | null; rejection: Rejection | null }>;
+  setups: StockSetup[];
+}
+
+export interface BacktestTrade {
+  /** "<horizon>:<strategy key>", e.g. "swing:breakout" or "long_term:factor_confluence". */
+  strategy: string;
+  as_of: string;
+  direction: Direction;
+  outcome: "target_hit" | "stopped" | "expired" | "not_triggered" | "open";
+  entry_at: string | null;
+  entry_price: number | null;
+  exit_at: string | null;
+  exit_price: number | null;
+  return_pct: number | null;
+  sessions_held: number | null;
+  excess_vs_nifty_pct: number | null;
+}
+
+export interface BacktestSummary {
+  picks: number;
+  open: number;
+  entered: number;
+  hit_rate: number | null;
+  win_rate: number | null;
+  avg_return_pct: number | null;
+  median_return_pct: number | null;
+  excess_vs_nifty_pct: number | null;
+  total_return_pct: number | null;
+  max_drawdown_pct: number | null;
+  avg_sessions_held: number | null;
+  equity: { t: string; equity: number }[];
+}
+
+/** One NDJSON line of `GET /v1/opportunities/stocks/{exchange}/{symbol}/backtest`. */
+export type BacktestEvent = { cached?: boolean } & (
+  | { type: "start"; sessions: number; first: string | null; last: string | null }
+  | { type: "progress"; done: number; through: string; trades: BacktestTrade[] }
+  | { type: "done"; summary: Record<string, BacktestSummary> }
+);

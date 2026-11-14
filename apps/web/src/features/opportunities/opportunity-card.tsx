@@ -159,7 +159,7 @@ function Stat({ label, value, tone = "" }: { label: string; value: string; tone?
 }
 
 /** A centred bar from -1 (bearish, left) to +1 (bullish, right). */
-function FactorRow({ factor }: { factor: FactorScore }) {
+export function FactorRow({ factor }: { factor: FactorScore }) {
   const width = `${Math.min(1, Math.abs(factor.score)) * 50}%`;
   const bullish = factor.score >= 0;
   return (

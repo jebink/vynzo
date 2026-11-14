@@ -9,6 +9,7 @@ import {
   LineSeries,
   LineStyle,
   type IChartApi,
+  type ISeriesApi,
   type LineData,
   type SeriesMarkerBar,
   type Time,
@@ -25,6 +26,13 @@ export interface ChartMarker {
   /** Trading date, "YYYY-MM-DD". */
   time: string;
   kind: ChartMarkerKind;
+}
+
+/** A horizontal price line, e.g. a strategy's entry, stop or target. */
+export interface PriceLevel {
+  price: number;
+  label: string;
+  color: string;
 }
 
 export interface PriceChartData {
@@ -62,9 +70,10 @@ function lineData(rows: IndicatorRow[], pick: (row: IndicatorRow) => number | nu
  * Candlestick chart with a volume histogram, optional EMA overlays, signal markers and an RSI(14)
  * pane. The chart is created in an effect (lightweight-charts needs `window`) and removed on unmount.
  */
-export function PriceChart({ data }: { data: PriceChartData }) {
+export function PriceChart({ data, levels = [] }: { data: PriceChartData; levels?: PriceLevel[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const candlesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const isDarkRef = useRef(false);
   const isDark = usePrefersDark();
   // Index into data.bars of the bar under the crosshair; null = the newest bar.
@@ -100,6 +109,7 @@ export function PriceChart({ data }: { data: PriceChartData }) {
       wickUpColor: CHART_COLORS.up,
       wickDownColor: CHART_COLORS.down,
     });
+    candlesRef.current = candles;
     candles.setData(
       data.bars.map((bar) => ({
         time: tradingDate(bar.ts),
@@ -186,9 +196,29 @@ export function PriceChart({ data }: { data: PriceChartData }) {
 
     return () => {
       chartRef.current = null;
+      candlesRef.current = null;
       chart.remove();
     };
   }, [data]);
+
+  // Strategy levels as price lines on the live chart; runs after the chart effect above.
+  useEffect(() => {
+    const candles = candlesRef.current;
+    if (!candles) return;
+    const lines = levels.map((level) =>
+      candles.createPriceLine({
+        price: level.price,
+        color: level.color,
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: level.label,
+      }),
+    );
+    return () => {
+      for (const line of lines) candles.removePriceLine(line);
+    };
+  }, [levels, data]);
 
   const index = hoverIndex ?? data.bars.length - 1;
   const bar = data.bars[index];

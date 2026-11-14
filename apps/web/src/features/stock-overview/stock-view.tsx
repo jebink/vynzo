@@ -1,10 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useCallback, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@/components/status";
 import { SentimentPanel } from "@/features/news-sentiment/sentiment-panel";
+import type { PriceLevel } from "@/features/price-charts/price-chart";
 import { StockChartPanel } from "@/features/price-charts/stock-chart-panel";
 import { SignalsTable } from "@/features/signals/components/signals-table";
+import { type ChartLevel, LEVEL_COLORS } from "@/features/stock-strategies/model";
+import { StrategyPanel } from "@/features/stock-strategies/strategy-panel";
 import { useAsync } from "@/hooks/use-async";
 import { isNotFound } from "@/lib/api";
 import { getListing, getSignals } from "@/lib/market-api";
@@ -13,10 +17,16 @@ import { StockHeader, StockHeaderSkeleton } from "./stock-header";
 
 const STOCK_SIGNAL_LIMIT = 50;
 
-/** The stock page body: header, price chart and this stock's signals. */
+/** The stock page body: header, strategies, price chart and this stock's signals. */
 export function StockView({ exchange, symbol }: { exchange: Exchange; symbol: string }) {
   const stock = `${exchange}:${symbol}`;
   const listing = useAsync(`listing:${stock}`, (signal) => getListing(exchange, symbol, signal));
+  const [levels, setLevels] = useState<PriceLevel[]>([]);
+  const onLevels = useCallback(
+    (next: ChartLevel[]) =>
+      setLevels(next.map((l) => ({ price: l.price, label: l.label, color: LEVEL_COLORS[l.kind] }))),
+    [],
+  );
 
   if (isNotFound(listing.error)) {
     return <StockNotFound exchange={exchange} symbol={symbol} />;
@@ -31,7 +41,8 @@ export function StockView({ exchange, symbol }: { exchange: Exchange; symbol: st
       ) : (
         <StockHeaderSkeleton symbol={symbol} exchange={exchange} />
       )}
-      <StockChartPanel exchange={exchange} symbol={symbol} />
+      <StrategyPanel key={stock} exchange={exchange} symbol={symbol} onLevels={onLevels} />
+      <StockChartPanel exchange={exchange} symbol={symbol} levels={levels} />
       <SentimentPanel symbol={symbol} />
       <StockSignals exchange={exchange} symbol={symbol} />
     </div>
