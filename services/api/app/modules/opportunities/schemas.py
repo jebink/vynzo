@@ -117,3 +117,59 @@ class PerformanceResponse(BaseModel):
     status: Literal["actionable", "watch", "all"]
     horizons: dict[Horizon, HorizonPerformance]
     recent: list[ClosedPick]
+
+
+# ---- Stock page: today's strategies per horizon ----
+
+
+class StockSetup(BaseModel):
+    """A named swing setup detected today, in either direction."""
+
+    key: str
+    variant: str
+    direction: Literal["BUY", "SELL"]
+    reason: str
+    stop: float
+
+
+class StockPick(BaseModel):
+    direction: Literal["BUY", "SELL"]
+    status: Literal["actionable", "watch"]
+    score: int
+    confidence: Literal["high", "medium", "low"]
+    price: float
+    entry_low: float
+    entry_high: float
+    stop_loss: float
+    targets: list[float]
+    risk_reward: float
+    holding_period: str
+    supports: list[float]
+    resistances: list[float]
+    reasons: list[str]
+    factors: list[FactorScore]
+    risks: list[str]
+    invalidation: list[str]
+    setups: list[StockSetup]
+
+
+class Rejection(BaseModel):
+    """The first gate a horizon failed; factors are empty when it failed before scoring."""
+
+    reason: str
+    factors: list[FactorScore]
+    score: int | None = None
+
+
+class StockHorizon(BaseModel):
+    pick: StockPick | None
+    rejection: Rejection | None
+
+
+class StockStrategiesResponse(BaseModel):
+    exchange: str
+    symbol: str
+    as_of: datetime | None
+    regime: Regime | None
+    horizons: dict[Horizon, StockHorizon]
+    setups: list[StockSetup]

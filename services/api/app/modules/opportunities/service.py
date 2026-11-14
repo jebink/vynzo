@@ -4,11 +4,19 @@ Picks are produced by analytics-worker (opportunities job) from end-of-day bars;
 only reads and summarises them.
 """
 
+import json
+import math
+import threading
+from collections import OrderedDict
+from collections.abc import Iterator
 from typing import Any
 
+import pandas as pd
 import psycopg
+from analytics_worker.opportunities import stock
 
 from app.modules.companies import market_cap
+from app.modules.instruments.service import require_listing
 from app.modules.opportunities import repository
 
 HORIZONS = ("next_session", "swing", "long_term")
@@ -118,3 +126,70 @@ def performance(conn: psycopg.Connection, status: str = "actionable") -> dict[st
         "horizons": horizons,
         "recent": repository.recent_closed(conn, statuses, RECENT_LIMIT),
     }
+
+
+# ---- Stock page ----
+
+
+def stock_strategies(conn: psycopg.Connection, exchange: str, symbol: str) -> dict[str, Any]:
+    """Today's pick or the failed gate per horizon for one stock (raises ListingNotFound)."""
+    listing = require_listing(conn, exchange, symbol)
+    inputs = stock.load_inputs(conn, listing["listing_id"], listing["symbol"])
+    result = stock.current(inputs) or {"as_of": None, "regime": None, "horizons": {}, "setups": []}
+    if not result["horizons"]:
+        reason = {"reason": "No price history yet", "factors": []}
+        result["horizons"] = {h: {"pick": None, "rejection": reason} for h in HORIZONS}
+    return {"exchange": listing["exchange"], "symbol": listing["symbol"], **result}
+
+
+# Finished backtests per (listing, last bar): a full-history run takes ~20 s, and a new bar
+# changes the answer. Per process (each uvicorn worker keeps its own).
+_BACKTEST_CACHE: OrderedDict[tuple, list[dict]] = OrderedDict()
+_BACKTEST_CACHE_SIZE = 32
+_cache_lock = threading.Lock()
+
+
+def _jsonable(value: Any) -> Any:
+    if isinstance(value, pd.Timestamp):
+        return value.isoformat()
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if hasattr(value, "item"):  # numpy scalars
+        return _jsonable(value.item())
+    if isinstance(value, dict):
+        return {k: _jsonable(v) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        return [_jsonable(v) for v in value]
+    return value
+
+
+def stock_backtest(conn: psycopg.Connection, exchange: str, symbol: str) -> Iterator[str]:
+    """NDJSON lines (start, progress..., done) of every strategy's full-history backtest.
+
+    Loads its data before returning, so the stream itself never touches `conn` (which goes back
+    to the pool once streaming starts). A cached run replays at once with "cached": true.
+    """
+    listing = require_listing(conn, exchange, symbol)
+    inputs = stock.load_inputs(conn, listing["listing_id"], listing["symbol"])
+    key = (listing["listing_id"], inputs.bars.index[-1] if not inputs.bars.empty else None)
+    with _cache_lock:
+        cached = _BACKTEST_CACHE.get(key)
+        if cached is not None:
+            _BACKTEST_CACHE.move_to_end(key)
+
+    def lines() -> Iterator[str]:
+        if cached is not None:
+            for event in cached:
+                yield json.dumps({**event, "cached": True}) + "\n"
+            return
+        events = []
+        for event in stock.backtest_events(inputs):
+            event = _jsonable(event)
+            events.append(event)
+            yield json.dumps(event) + "\n"
+        with _cache_lock:
+            _BACKTEST_CACHE[key] = events
+            while len(_BACKTEST_CACHE) > _BACKTEST_CACHE_SIZE:
+                _BACKTEST_CACHE.popitem(last=False)
+
+    return lines()
