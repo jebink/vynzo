@@ -12,8 +12,9 @@ def _bar(listing_id, ts, close, volume=1000):
 
 
 @pytest.fixture
-def seeded(fresh_db, migrate):
+def seeded(fresh_db, migrate, without_reference_listings):
     migrate(fresh_db)
+    without_reference_listings(fresh_db)
     ids = {}
     with psycopg.connect(fresh_db) as conn:
         company_id = conn.execute(
@@ -294,7 +295,7 @@ def _add_provider_symbols(db_url, symbols):
             conn.execute(
                 "INSERT INTO provider_symbols (provider, provider_symbol, listing_id) "
                 "SELECT 'yahoo', %s, listing_id FROM listings WHERE exchange = %s AND symbol = %s",
-                (f"{symbol}.{exchange}", exchange, symbol),
+                (f"{symbol}.{'NS' if exchange == 'NSE' else 'BO'}", exchange, symbol),
             )
 
 
@@ -358,7 +359,9 @@ def _row(resp, symbol):
     return next(r for r in resp.json()["rows"] if r["symbol"] == symbol)
 
 
-def test_selection_lists_symbols_with_per_exchange_state(client):
+def test_selection_lists_symbols_with_per_exchange_state(client, seeded):
+    # Bars only ever come from ingestion, which needs a provider symbol
+    _add_provider_symbols(seeded, [("NSE", "RELIANCE")])
     r = client.get(SELECTION)
     assert r.status_code == 200
     body = r.json()
@@ -367,7 +370,7 @@ def test_selection_lists_symbols_with_per_exchange_state(client):
     assert [x["symbol"] for x in body["rows"]] == ["NIFTY", "RELI", "RELIANCE", "TATAREL"]
     rel = _row(r, "RELIANCE")
     assert rel["company_name"] == "Reliance Industries Limited" and rel["kind"] == "equity"
-    assert rel["nse"]["is_active"] is True and rel["nse"]["provider_symbol"] is None
+    assert rel["nse"]["is_active"] is True and rel["nse"]["provider_symbol"] == "RELIANCE.NS"
     assert rel["nse"]["last_bar"] == "2026-11-06T00:00:00Z"
     assert rel["bse"]["is_active"] is False and rel["bse"]["last_bar"] is None
     assert _row(r, "TATAREL")["bse"] is None

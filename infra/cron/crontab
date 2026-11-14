@@ -9,9 +9,10 @@ SHELL=/bin/bash
 PATH=/home/admin/.local/bin:/usr/local/bin:/usr/bin:/bin
 VYNZO_ROOT=/home/admin/vynzo
 
-# Mon-Fri 17:00 IST: EOD ingest, then indicators and signals, then the freshness check.
+# Mon-Fri 17:00 IST: EOD ingest, then indicators and signals, then Market opportunities (close
+# open picks against today's bar, then rank today's), then the freshness check.
 # high-volume-buy scans the last 3 sessions (idempotent), so a skipped day heals itself.
-30 11 * * 1-5  $VYNZO_ROOT/infra/cron/run_job.sh market_ingestion eod && $VYNZO_ROOT/infra/cron/run_job.sh analytics_worker indicators && $VYNZO_ROOT/infra/cron/run_job.sh analytics_worker high-volume-buy --days 3 && $VYNZO_ROOT/infra/cron/run_job.sh market_ingestion freshness
+30 11 * * 1-5  $VYNZO_ROOT/infra/cron/run_job.sh market_ingestion eod && $VYNZO_ROOT/infra/cron/run_job.sh analytics_worker indicators && $VYNZO_ROOT/infra/cron/run_job.sh analytics_worker high-volume-buy --days 3 && $VYNZO_ROOT/infra/cron/run_job.sh analytics_worker opportunity-outcomes && $VYNZO_ROOT/infra/cron/run_job.sh analytics_worker opportunities && $VYNZO_ROOT/infra/cron/run_job.sh market_ingestion freshness
 
 # Daily 18:30 IST: data freshness (pushes to Uptime Kuma when KUMA_PUSH_URL is set)
 0 13 * * *     $VYNZO_ROOT/infra/cron/run_job.sh market_ingestion freshness

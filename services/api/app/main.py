@@ -15,6 +15,7 @@ from app.modules.companies.router import router as companies_router
 from app.modules.fundamentals.router import router as fundamentals_router
 from app.modules.instruments.router import router as instruments_router
 from app.modules.market_data.router import router as market_data_router
+from app.modules.opportunities.router import router as opportunities_router
 from app.modules.signals.router import router as signals_router
 from app.modules.stock_grading.router import router as stock_grading_router
 
@@ -45,6 +46,7 @@ for router in (
     instruments_router,
     companies_router,
     market_data_router,
+    opportunities_router,
     fundamentals_router,
     signals_router,
     stock_grading_router,

@@ -27,3 +27,39 @@ class LatestBar(BaseModel):
 class ListingDetail(Listing):
     latest: LatestBar | None
     previous_close: float | None
+
+
+# ---- Ingestion selection ----
+
+
+class ListingState(BaseModel):
+    """One exchange listing of a symbol as the daily pipeline sees it."""
+
+    listing_id: int
+    is_active: bool
+    provider_symbol: str | None
+    last_bar: datetime | None
+
+
+class SelectionRow(BaseModel):
+    symbol: str
+    company_name: str | None
+    isin: str | None
+    kind: str
+    nse: ListingState | None
+    bse: ListingState | None
+
+
+class SelectedCounts(BaseModel):
+    NSE: int
+    BSE: int
+
+
+class SelectionPage(BaseModel):
+    total: int
+    selected: SelectedCounts
+    rows: list[SelectionRow]
+
+
+class SelectionUpdate(BaseModel):
+    selected: bool

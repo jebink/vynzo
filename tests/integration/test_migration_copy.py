@@ -1,4 +1,4 @@
-"""Copy migrations 08-11 (legacy.* -> listing-keyed public.*) and the pending legacy drop."""
+"""Copy migrations 08-11 (legacy.* -> listing-keyed public.*) and the legacy drop (12-15)."""
 
 from pathlib import Path
 
@@ -9,6 +9,7 @@ from psycopg import sql
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS_DIR = ROOT / "database" / "postgres" / "migrations"
 PENDING_DIR = ROOT / "database" / "postgres" / "pending"
+LAST_COPY = "20261111000011"
 COPY_VERSIONS = ["20261111000008", "20261111000009", "20261111000010", "20261111000011"]
 
 # Every legacy table that is copied, with the number of rows the seed puts in it.
@@ -62,8 +63,9 @@ def _legacy_columns(url: str, table: str) -> list[str]:
 
 @pytest.fixture
 def copied(fresh_db, migrate, seed_legacy):
+    """Seeded legacy data copied by 08-11, with schema `legacy` still in place (before the drop)."""
     seed_legacy(fresh_db)
-    migrate(fresh_db)
+    migrate(fresh_db, until=LAST_COPY)
     return fresh_db
 
 
@@ -224,7 +226,7 @@ def test_ohlcv_daily_guard(fresh_db, migrate, seed_legacy):
 
 def test_empty_db_noop(fresh_db, migrate):
     applied = migrate(fresh_db)
-    assert applied[-4:] == COPY_VERSIONS
+    assert [v for v in applied if v in COPY_VERSIONS] == COPY_VERSIONS
     for table in COPIED_TABLES:
         assert (
             _scalar(
@@ -263,13 +265,14 @@ def test_down_truncates_and_up_recopies(copied, migrate):
         ), table
     # Listings stay (07 owns them), so the copies can run again.
     assert _scalar(copied, "select count(*) from listings") == 5
-    assert migrate(copied, after="20261111000007") == COPY_VERSIONS
+    assert migrate(copied, after="20261111000007", until=LAST_COPY) == COPY_VERSIONS
     _assert_identical(copied)
 
 
-# The pending legacy drop, in order: (version, legacy tables it drops). The last one also drops
-# schema `legacy`. Split so no single transaction exceeds the dev lock table.
-PENDING_DROPS = [
+# The legacy drop, in order: (version, legacy tables it drops). The last one also drops schema
+# `legacy`. Split so no single transaction exceeds the dev lock table. Approved and moved out of
+# pending/ on 2026-11-14.
+LEGACY_DROPS = [
     ("20261111000012", ["ohlcv_1d"]),
     ("20261111000013", ["ta_daily"]),
     ("20261111000014", ["ohlcv_1w"]),
@@ -295,20 +298,19 @@ def _legacy_tables(url: str) -> set[str]:
     return {r[0] for r in _rows(url, "select tablename from pg_tables where schemaname = 'legacy'")}
 
 
-def test_pending_files_are_the_split_drop():
-    assert not list(MIGRATIONS_DIR.glob("*drop_legacy*"))
-    names = sorted(p.name for p in PENDING_DIR.glob("*.sql"))
-    assert [n.split("_", 1)[0] for n in names] == [v for v, _ in PENDING_DROPS]
-    assert all("drop_legacy" in n for n in names)
+def test_drop_files_are_the_split_drop():
+    assert not list(PENDING_DIR.glob("*drop_legacy*"))
+    names = sorted(p.name for p in MIGRATIONS_DIR.glob("*drop_legacy*.sql"))
+    assert [n.split("_", 1)[0] for n in names] == [v for v, _ in LEGACY_DROPS]
 
 
-def test_pending_not_applied(copied, migrate):
+def test_drops_remove_legacy_in_order(copied, migrate):
     assert _scalar(copied, "select to_regnamespace('legacy')") is not None
     remaining = _legacy_tables(copied)
     assert remaining == set(SEEDED_COUNTS) | {"ohlcv_daily"}
-    prev = "20261111000011"
-    for version, tables in PENDING_DROPS:
-        assert migrate(copied, after=prev, until=version, include_pending=True) == [version]
+    prev = LAST_COPY
+    for version, tables in LEGACY_DROPS:
+        assert migrate(copied, after=prev, until=version) == [version]
         remaining -= set(tables)
         assert _legacy_tables(copied) == remaining, version
         prev = version
@@ -338,9 +340,9 @@ def test_pending_not_applied(copied, migrate):
         ), table
 
 
-@pytest.mark.parametrize("version", [v for v, _ in PENDING_DROPS])
-def test_pending_down_refuses(fresh_db, version):
-    (path,) = PENDING_DIR.glob(f"{version}_*.sql")
+@pytest.mark.parametrize("version", [v for v, _ in LEGACY_DROPS])
+def test_drop_down_refuses(fresh_db, version):
+    (path,) = MIGRATIONS_DIR.glob(f"{version}_*.sql")
     down = path.read_text().split("-- migrate:down", 1)[1]
     with pytest.raises(psycopg.errors.RaiseException, match="restore from backup"):
         with psycopg.connect(fresh_db) as conn:

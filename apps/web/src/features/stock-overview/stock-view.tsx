@@ -67,10 +67,10 @@ function StockNotFound({ exchange, symbol }: { exchange: Exchange; symbol: strin
         symbol, or try the other exchange.
       </p>
       <Link
-        href="/markets"
+        href="/market"
         className="mt-6 inline-flex rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
       >
-        Search markets
+        Go to Market
       </Link>
     </div>
   );

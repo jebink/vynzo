@@ -35,8 +35,9 @@ class FakeProvider:
 
 
 @pytest.fixture
-def url(fresh_db, migrate):
+def url(fresh_db, migrate, without_reference_listings):
     migrate(fresh_db)
+    without_reference_listings(fresh_db)
     return fresh_db
 
 

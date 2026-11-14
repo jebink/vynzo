@@ -82,12 +82,14 @@ export function PriceChart({ data }: { data: PriceChartData }) {
     const container = containerRef.current;
     if (!container) return;
 
+    const theme = chartThemeOptions(isDarkRef.current);
     const chart = createChart(container, {
       autoSize: true,
       crosshair: { mode: CrosshairMode.Normal },
       rightPriceScale: { scaleMargins: { top: 0.08, bottom: 0.25 } },
       timeScale: { rightOffset: 4, minBarSpacing: 1 },
-      ...chartThemeOptions(isDarkRef.current),
+      ...theme,
+      layout: { ...theme.layout, attributionLogo: false },
     });
     chartRef.current = chart;
 

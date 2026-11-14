@@ -35,6 +35,34 @@ export interface ListingDetail extends Listing {
   previous_close: number | null;
 }
 
+/** One exchange listing of a symbol as the daily pipeline sees it. */
+export interface ListingState {
+  listing_id: number;
+  /** Selected for the daily ingestion, indicators and signals. */
+  is_active: boolean;
+  provider_symbol: string | null;
+  last_bar: string | null;
+}
+
+/** A symbol with its NSE and BSE listings (`null` where it has no listing on that exchange). */
+export interface SelectionRow {
+  symbol: string;
+  company_name: string | null;
+  isin: string | null;
+  kind: string;
+  nse: ListingState | null;
+  bse: ListingState | null;
+}
+
+/** `GET /v1/instruments/selection` */
+export interface SelectionPage {
+  total: number;
+  selected: Record<Exchange, number>;
+  rows: SelectionRow[];
+}
+
+export type SelectionStatus = "all" | "selected" | "unselected";
+
 // ---- Market data ----
 
 /** `GET /v1/market-data/{exchange}/{symbol}/bars` */
@@ -149,3 +177,102 @@ export interface SwingSignal {
 }
 
 export const HIGH_VOLUME_BUY = "HIGH_VOLUME_BUY";
+
+// ---- Opportunities ----
+
+export type Horizon = "next_session" | "swing" | "long_term";
+export type Direction = "BUY" | "SELL";
+export type Confidence = "high" | "medium" | "low";
+
+export interface FactorScore {
+  /** trend | momentum | price_action | volume | volatility | relative_strength */
+  group: string;
+  /** -1 bearish .. +1 bullish */
+  score: number;
+  reason: string;
+}
+
+export interface MarketRegime {
+  score: number;
+  label: "bullish" | "neutral" | "bearish" | "unknown";
+  notes: string[];
+}
+
+export interface Opportunity {
+  id: number;
+  listing_id: number;
+  exchange: Exchange;
+  symbol: string;
+  company_name: string | null;
+  horizon: Horizon;
+  as_of: string;
+  direction: Direction;
+  /** "actionable" passed every bar; "watch" is worth monitoring only. */
+  status: "actionable" | "watch";
+  score: number;
+  confidence: Confidence;
+  /** Last daily close. */
+  price: number;
+  entry_low: number;
+  entry_high: number;
+  stop_loss: number;
+  targets: number[];
+  risk_reward: number;
+  holding_period: string;
+  supports: number[];
+  resistances: number[];
+  reasons: string[];
+  factors: FactorScore[];
+  risks: string[];
+  invalidation: string[];
+  calc_version: string;
+}
+
+/** `GET /v1/opportunities` */
+export interface OpportunitiesResponse {
+  as_of: string | null;
+  generated_at: string | null;
+  regime: MarketRegime | null;
+  data_note: string;
+  horizons: Record<Horizon, Opportunity[]>;
+}
+
+export type OutcomeStatus = "target_hit" | "stopped" | "expired" | "not_triggered";
+
+export interface ScoreBand {
+  band: string;
+  triggered: number;
+  hit_rate: number | null;
+  avg_return_pct: number | null;
+}
+
+export interface HorizonPerformance {
+  picks: number;
+  open: number;
+  closed: Record<OutcomeStatus, number>;
+  hit_rate: number | null;
+  avg_return_pct: number | null;
+  by_score: ScoreBand[];
+}
+
+export interface ClosedPick {
+  id: number;
+  symbol: string;
+  exchange: Exchange;
+  horizon: Horizon;
+  direction: Direction;
+  score: number;
+  as_of: string;
+  status: OutcomeStatus;
+  return_pct: number | null;
+  exit_at: string | null;
+}
+
+export type PickStatusFilter = "actionable" | "watch" | "all";
+
+/** `GET /v1/opportunities/performance` */
+export interface PerformanceResponse {
+  status: PickStatusFilter;
+  horizons: Record<Horizon, HorizonPerformance>;
+  recent: ClosedPick[];
+}

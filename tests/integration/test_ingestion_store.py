@@ -16,8 +16,9 @@ T0 = datetime(2026, 11, 2, tzinfo=UTC)
 
 
 @pytest.fixture
-def conn(fresh_db, migrate):
+def conn(fresh_db, migrate, without_reference_listings):
     migrate(fresh_db)
+    without_reference_listings(fresh_db)
     c = connect(fresh_db)
     yield c
     c.close()

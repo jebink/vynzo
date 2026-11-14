@@ -1,12 +1,18 @@
 // Typed fetchers for the market data and signals API (docs/api/market-data-and-signals.md).
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPut } from "@/lib/api";
 import type {
   BarsResponse,
   Exchange,
   IndicatorsResponse,
   Listing,
   ListingDetail,
+  OpportunitiesResponse,
   OverviewResponse,
+  PerformanceResponse,
+  PickStatusFilter,
+  SelectionPage,
+  SelectionRow,
+  SelectionStatus,
   Signal,
   SignalTypeSummary,
   SwingSignal,
@@ -48,6 +54,20 @@ export function getListing(
   signal?: AbortSignal,
 ): Promise<ListingDetail> {
   return apiGet(`/v1/instruments/listings/${stockPath(exchange, symbol)}`, opts(signal));
+}
+
+// ---- Ingestion selection (admin) ----
+
+export function getSelection(
+  params: { q?: string; status?: SelectionStatus; offset?: number; limit?: number },
+  signal?: AbortSignal,
+): Promise<SelectionPage> {
+  return apiGet(`/v1/instruments/selection${query(params)}`, opts(signal));
+}
+
+/** Selects or deselects one exchange listing of `symbol` for the daily pipeline. */
+export function setSelection(exchange: Exchange, symbol: string, selected: boolean): Promise<SelectionRow> {
+  return apiPut(`/v1/instruments/selection/${stockPath(exchange, symbol)}`, { selected });
 }
 
 // ---- Market data ----
@@ -105,4 +125,19 @@ export function getSwingSignals(
   signal?: AbortSignal,
 ): Promise<SwingSignal[]> {
   return apiGet(`/v1/signals/swing${query(params)}`, opts(signal));
+}
+
+// ---- Opportunities ----
+
+/** The newest session's ranked picks per horizon. */
+export function getOpportunities(signal?: AbortSignal): Promise<OpportunitiesResponse> {
+  return apiGet(`/v1/opportunities`, opts(signal));
+}
+
+/** Track record of actionable (default), monitor-only ("watch") or all picks. */
+export function getOpportunityPerformance(
+  status: PickStatusFilter = "actionable",
+  signal?: AbortSignal,
+): Promise<PerformanceResponse> {
+  return apiGet(`/v1/opportunities/performance${query({ status })}`, opts(signal));
 }

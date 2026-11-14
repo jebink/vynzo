@@ -37,6 +37,39 @@ One listing (same shape as above), plus `latest` (the newest `ohlcv_1d` bar, or 
  "previous_close": 1320.0}
 ```
 
+### Ingestion selection (admin UI `/admin`)
+Which listings the daily pipeline runs over. Selection is `listings.is_active`, which EOD
+ingestion, indicators and the high-volume-buy signal all filter on; ingestion also needs a Yahoo
+provider symbol. **No auth yet (Phase 2): anyone who can reach the API can change it.**
+
+#### `GET /v1/instruments/selection`
+One row per symbol with its NSE and BSE listing (`null` where none exists).
+| Query | Default | Notes |
+|---|---|---|
+| `q` | none | Symbol prefix or company-name substring (case-insensitive) |
+| `status` | `all` | `all`, `selected` (any listing selected) or `unselected` |
+| `offset` / `limit` | `0` / `50` | `limit` 1–200; rows ordered by symbol |
+
+```json
+{"total": 2646, "selected": {"NSE": 276, "BSE": 2},
+ "rows": [{"symbol": "RELIANCE", "company_name": "Reliance Industries Limited",
+           "isin": "INE002A01018", "kind": "equity",
+           "nse": {"listing_id": 248, "is_active": true, "provider_symbol": "RELIANCE.NS",
+                   "last_bar": "2026-11-13T00:00:00Z"},
+           "bse": null}]}
+```
+`last_bar` is the newest `ohlcv_1d` ts, looked up only for listings with a provider symbol.
+
+#### `PUT /v1/instruments/selection/{exchange}/{symbol}`
+Body `{"selected": true|false}`; returns the updated row (shape as above).
+- Selecting adds the Yahoo provider symbol if missing (`SYMBOL.NS` / `SYMBOL.BO`). With no
+  checkpoint, the next daily run fetches the listing's full history.
+- Selecting BSE for a symbol only listed on NSE creates the BSE listing for the same company.
+  BSE assumes the NSE symbol; a company with a different BSE symbol fails at fetch time.
+- Deselecting keeps all data; deselecting a listing that does not exist is a no-op.
+- `404` unknown symbol; `409` no company to create a listing for (index or unlinked listing);
+  `422` bad exchange or body.
+
 ## Market data (module `market_data`)
 
 ### `GET /v1/market-data/overview`
@@ -123,3 +156,40 @@ Legacy swing signals (`swing_signals`). Takes `exchange`, `symbol` and `limit` (
   "calc_version": "legacy-vinzo-core"}]
 ```
 Ordering: `as_of` descending.
+
+## Opportunities (module `opportunities`)
+Ranked BUY/SELL picks per horizon (`next_session`, `swing`, `long_term`) from analytics-worker's
+`opportunities` job (end-of-day data; design in
+`docs/superpowers/plans/2026-11-14-market-opportunities.md`). Read-only. Not investment advice.
+
+### `GET /v1/opportunities`
+The newest session's picks, grouped by horizon; each list is actionable first, then by score.
+```json
+{"as_of": "2026-11-13T00:00:00Z", "generated_at": "2026-11-13T11:52:10Z",
+ "regime": {"score": 0.5, "label": "bullish", "short_term": 1.0, "notes": ["NIFTY above its 20-day EMA, +9.6% over 10 sessions"]},
+ "data_note": "Computed from end-of-day prices (Yahoo Finance) after the close; not real-time. Not investment advice.",
+ "horizons": {"next_session": [], "long_term": [],
+   "swing": [{"id": 812, "listing_id": 12, "exchange": "NSE", "symbol": "MCX", "company_name": "Multi Commodity Exchange of India Limited",
+              "horizon": "swing", "as_of": "2026-11-13T00:00:00Z", "direction": "BUY", "status": "actionable",
+              "score": 100, "confidence": "high", "price": 3720.0, "entry_low": 3688.97, "entry_high": 3732.41,
+              "stop_loss": 3400.38, "targets": [4331.32, 4641.63], "risk_reward": 2.0,
+              "holding_period": "5–20 trading sessions", "supports": [3512.4], "resistances": [],
+              "reasons": ["Breakout above the 20-day high 3645.00"],
+              "factors": [{"group": "trend", "score": 1.0, "reason": "Close above the 21-day EMA, ..."}],
+              "risks": ["No earnings or events calendar yet: ..."], "invalidation": ["Daily close below the stop-loss 3400.38"],
+              "calc_version": "opp-1.4.0"}]}}
+```
+`status`: `actionable` passed every check; `watch` is monitor-only. Next-session picks are always
+`watch` until an intraday feed exists. Since `opp-1.4.0`, SELL picks are always `watch`, and a BUY
+is never `actionable` in a bearish market regime (backtest results in the plan doc). `as_of` is `null` (and every list empty) before the first run.
+
+### `GET /v1/opportunities/{id}`
+One pick (same fields) plus `regime`, `inputs` (the feature values it was scored from) and
+`outcome` (`null` while open; else `status` target_hit | stopped | expired | not_triggered,
+entry/exit prices and dates, `return_pct` direction-adjusted, `sessions_held`). `404` if unknown.
+
+### `GET /v1/opportunities/performance?status=actionable|watch|all`
+Track record per horizon (default `actionable`): `picks`, `open`, `closed` counts per outcome,
+`hit_rate` (target hits / entered picks), `avg_return_pct` (entered picks), `by_score` bands
+(85-100, 70-84, 55-69), and the latest 20 closed picks in `recent`. A pick that repeats an
+earlier, still-open pick (same listing, horizon and direction) is not counted again.

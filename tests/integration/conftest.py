@@ -95,6 +95,30 @@ def migrate():
     return apply_migrations
 
 
+# Reference listings that migrations insert (20261114000001: market-regime indexes). Tests that
+# assume an otherwise empty instrument table remove them with `without_reference_listings`.
+REFERENCE_LISTINGS = ("BANKNIFTY", "INDIAVIX")
+
+
+def remove_reference_listings(url: str) -> None:
+    with psycopg.connect(url) as conn:
+        conn.execute(
+            "DELETE FROM provider_symbols WHERE listing_id IN "
+            "(SELECT listing_id FROM listings WHERE exchange = 'NSE' AND symbol = ANY(%s))",
+            (list(REFERENCE_LISTINGS),),
+        )
+        conn.execute(
+            "DELETE FROM listings WHERE exchange = 'NSE' AND symbol = ANY(%s)",
+            (list(REFERENCE_LISTINGS),),
+        )
+
+
+@pytest.fixture
+def without_reference_listings():
+    """Call with a migrated database URL to drop the migration-inserted index listings."""
+    return remove_reference_listings
+
+
 @pytest.fixture
 def fresh_db(request):
     base = _base_url()
