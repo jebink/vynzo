@@ -11,6 +11,17 @@ import { HORIZONS, STRATEGIES } from "./horizons";
 import { OpportunityCard } from "./opportunity-card";
 import { PerformancePanel } from "./performance-panel";
 
+// The original engine: picks from the six-factor score alone, with no named setup attached.
+const FACTOR_CONFLUENCE = {
+  key: "factor_confluence",
+  name: "Factor confluence",
+  description: "At least three of six factor groups (trend, momentum, price action, volume, volatility, relative strength) agree, with no named setup.",
+};
+
+function matchesStrategy(pick: Opportunity, key: string): boolean {
+  return key === FACTOR_CONFLUENCE.key ? pick.setups.length === 0 : pick.setups.some((s) => s.key === key);
+}
+
 type DirectionFilter = "ALL" | Direction;
 type ConfidenceFilter = "any" | "medium" | "high";
 type View = "picks" | "performance";
@@ -58,7 +69,7 @@ export function MarketOpportunities() {
     (pick) =>
       (direction === "ALL" || pick.direction === direction) &&
       CONFIDENCE_RANK[pick.confidence] >= minConfidence &&
-      (strategyFilter === "any" || pick.setups.some((s) => s.key === strategyFilter)),
+      (strategyFilter === "any" || matchesStrategy(pick, strategyFilter)),
   );
   const actionable = shown.filter((pick) => pick.status === "actionable");
   const watch = shown.filter((pick) => pick.status === "watch");
@@ -172,8 +183,8 @@ function StrategySelect({
   value: string;
   onChange: (value: string) => void;
 }) {
-  const count = (key: string) => picks.filter((p) => p.setups.some((s) => s.key === key)).length;
-  const description = STRATEGIES.find((s) => s.key === value)?.description;
+  const count = (key: string) => picks.filter((p) => matchesStrategy(p, key)).length;
+  const description = [FACTOR_CONFLUENCE, ...STRATEGIES].find((s) => s.key === value)?.description;
   return (
     <label className="flex items-center gap-2 text-sm">
       <span className="text-zinc-600 dark:text-zinc-400">Strategy</span>
@@ -184,7 +195,7 @@ function StrategySelect({
         className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
       >
         <option value="any">Any</option>
-        {STRATEGIES.map((s) => (
+        {[FACTOR_CONFLUENCE, ...STRATEGIES].map((s) => (
           <option key={s.key} value={s.key}>
             {s.name} ({count(s.key)})
           </option>
