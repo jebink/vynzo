@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Restore a backup made by scripts/backup_db.sh into a database (TimescaleDB-aware).
+# Restore a backup made by vynzo_batch/backup_db.sh into a database (TimescaleDB-aware).
 #
 #   scripts/restore_db.sh <dump-file> [target-db]
 #

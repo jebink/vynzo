@@ -29,10 +29,10 @@ scripts/deploy.sh dev --ref <commit|branch|tag>
 
 Steps: unit tests and typecheck (`--skip-checks` skips) → confirm → ship the commit with
 `git archive` + rsync to `/home/admin/vynzo` (`REVISION` records it) → `uv sync` and
-`pnpm install` from the lockfiles → if a migration is pending, `scripts/backup_db.sh` then
+`pnpm install` from the lockfiles → if a migration is pending, `vynzo_batch/backup_db.sh` then
 `scripts/migrate.sh up` → `next build` with `DEV_API_URL` → install `infra/systemd/*.service` if
 changed → `sudo systemctl restart vynzo-api vynzo-web` → health checks on :8000 and :3000 → warns
-if the crontab differs from `infra/cron/crontab` (never rewrites it).
+if the crontab differs from `vynzo_batch/cron/crontab` (never rewrites it).
 
 Only committed files ship. Server-only files are never sent or deleted: `.env*`, `logs/`, `data/`,
 `.venv/`, `node_modules/`, `apps/web/.next/`.

@@ -12,9 +12,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --all-packages --frozen
-      - run: uv run ruff check services
-      - run: uv run ruff format --check services
-      - run: uv run pytest services
+      - run: uv run ruff check services vynzo_batch
+      - run: uv run ruff format --check services vynzo_batch
+      - run: uv run pytest services vynzo_batch
 
   web:
     runs-on: ubuntu-latest

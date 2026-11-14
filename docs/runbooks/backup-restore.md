@@ -1,11 +1,11 @@
 # Backup and restore
 
-`scripts/backup_db.sh` runs nightly (see `infra/cron/crontab`). It writes a compressed `pg_dump`
+`vynzo_batch/backup_db.sh` runs nightly (see `vynzo_batch/cron/crontab`). It writes a compressed `pg_dump`
 to `$BACKUP_DIR` (default `~/backups/vynzo`), keeps `$BACKUP_KEEP` days (default 14) and copies
 to `$BACKUP_REMOTE` when set.
 
 ```bash
-scripts/backup_db.sh                                              # on demand
+vynzo_batch/backup_db.sh                                              # on demand
 scripts/restore_db.sh ~/backups/vynzo/market_<stamp>.dump         # restores into "market_restore"
 scripts/restore_db.sh ~/backups/vynzo/market_<stamp>.dump market  # replace production (asks to confirm)
 ```

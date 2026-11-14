@@ -112,7 +112,7 @@ Every command below passes `DATABASE_URL="$DEV_URL"` (or `--db "$DEV_URL"`) expl
    export PATH="$HOME/.local/bin:$PATH"
    uv sync --all-packages --frozen
    uv run python --version              # expect 3.13.x
-   uv run pytest services -q            # one-time check on the server; expect all passed
+   uv run pytest services vynzo_batch -q            # one-time check on the server; expect all passed
    mkdir -p logs
    ```
    **Create `~/vynzo/.env`** from `.env.example` (mode 600). `DATABASE_URL` is the old
@@ -148,7 +148,7 @@ Every command below passes `DATABASE_URL="$DEV_URL"` (or `--db "$DEV_URL"`) expl
    **`BACKUP_REMOTE`** stays empty (local backups only) until you set it by hand, with an editor, to
    a **new** remote directory, e.g. the same host as the old value but a `.../vynzo` subdirectory
    (create it on the remote first). **Never point it at the old vinzo-core backup directory:**
-   `scripts/backup_db.sh` runs `rsync --delete --include='market_*.dump'`, which would delete the
+   `vynzo_batch/backup_db.sh` runs `rsync --delete --include='market_*.dump'`, which would delete the
    old off-host dumps that are not in `~/backups/vynzo`. Check without printing either value:
    ```bash
    new=$(grep '^BACKUP_REMOTE=' .env | cut -d= -f2-)
@@ -163,7 +163,7 @@ Every command below passes `DATABASE_URL="$DEV_URL"` (or `--db "$DEV_URL"`) expl
 
    **Smoke test** the wrapper and `.env`:
    ```bash
-   infra/cron/run_job.sh market_ingestion freshness; echo "exit=$?"
+   vynzo_batch/cron/run_job.sh market_ingestion freshness; echo "exit=$?"
    tail -n 5 logs/market_ingestion_freshness_$(date -u +%Y%m%d).log
    ```
    The log must hold one JSON line (`{"fresh": ..., "latest": ..., ...}`) after the `start` line.
@@ -171,11 +171,11 @@ Every command below passes `DATABASE_URL="$DEV_URL"` (or `--db "$DEV_URL"`) expl
    then skips its `done` line); a traceback or a connection error is not. With `KUMA_PUSH_URL` set,
    this also pushes the result to Uptime Kuma.
 
-   **Install the new jobs by appending** `infra/cron/crontab` to the (now vinzo-core-free) crontab.
+   **Install the new jobs by appending** `vynzo_batch/cron/crontab` to the (now vinzo-core-free) crontab.
    Never replace the crontab wholesale. Run it once; check first that it is not already there:
    ```bash
    crontab -l | grep -c VYNZO_ROOT          # expect 0 before installing
-   (crontab -l; cat ~/vynzo/infra/cron/crontab) | crontab -
+   (crontab -l; cat ~/vynzo/vynzo_batch/cron/crontab) | crontab -
    crontab -l | grep -c vinzo-core          # expect 0
    crontab -l | grep -c 'run_job.sh'        # expect 2 (the 17:00 chain and the 18:30 freshness)
    crontab -l                               # check; adjust VYNZO_ROOT/PATH in the file first if the paths differ
@@ -183,9 +183,9 @@ Every command below passes `DATABASE_URL="$DEV_URL"` (or `--db "$DEV_URL"`) expl
    The nightly backup is scheduled again from here.
 5. **First live run by hand,** then let cron take over:
    ```bash
-   infra/cron/run_job.sh market_ingestion eod && infra/cron/run_job.sh analytics_worker indicators \
-     && infra/cron/run_job.sh analytics_worker high-volume-buy --days 3 \
-     && infra/cron/run_job.sh market_ingestion freshness
+   vynzo_batch/cron/run_job.sh market_ingestion eod && vynzo_batch/cron/run_job.sh analytics_worker indicators \
+     && vynzo_batch/cron/run_job.sh analytics_worker high-volume-buy --days 3 \
+     && vynzo_batch/cron/run_job.sh market_ingestion freshness
    ```
    `run_job.sh` passes extra arguments through, takes a per-job `flock` (a second copy of the same
    job logs `skip` and exits 0), and deletes `logs/*.log` older than 30 days.

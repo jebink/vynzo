@@ -10,11 +10,11 @@ See [docs/architecture.md](docs/architecture.md) for the target architecture, ph
 |---|---|
 | `apps/web` | Next.js website |
 | `services/api` | FastAPI, one module per business domain |
-| `services/market-ingestion` | EOD market-data ingestion (NSE/BSE/vendor adapters) |
-| `services/fundamentals-worker` | Financial statements, corporate actions |
-| `services/analytics-worker` | Indicators, signals, news sentiment |
+| `vynzo_batch/market-ingestion` | EOD market-data ingestion (NSE/BSE/vendor adapters) |
+| `vynzo_batch/fundamentals-worker` | Financial statements, corporate actions |
+| `vynzo_batch/analytics-worker` | Indicators, signals, news sentiment |
 | `database/postgres` | Migrations (dbmate): the only place schema changes |
-| `infra/compose`, `infra/cron` | TimescaleDB stack, scheduled jobs |
+| `infra/compose`, `vynzo_batch/cron` | TimescaleDB stack, scheduled jobs |
 | `scripts/` | bootstrap, migrate, backup/restore |
 | `docs/` | Architecture, ADRs, runbooks |
 

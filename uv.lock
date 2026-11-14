@@ -1213,7 +1213,7 @@ dev = [
 [[package]]
 name = "vynzo-analytics-worker"
 version = "0.1.0"
-source = { editable = "services/analytics-worker" }
+source = { editable = "vynzo_batch/analytics-worker" }
 dependencies = [
     { name = "numpy" },
     { name = "pandas" },
@@ -1253,7 +1253,7 @@ requires-dist = [
 [[package]]
 name = "vynzo-fundamentals-worker"
 version = "0.1.0"
-source = { editable = "services/fundamentals-worker" }
+source = { editable = "vynzo_batch/fundamentals-worker" }
 dependencies = [
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic-settings" },
@@ -1268,7 +1268,7 @@ requires-dist = [
 [[package]]
 name = "vynzo-market-ingestion"
 version = "0.1.0"
-source = { editable = "services/market-ingestion" }
+source = { editable = "vynzo_batch/market-ingestion" }
 dependencies = [
     { name = "numpy" },
     { name = "pandas" },

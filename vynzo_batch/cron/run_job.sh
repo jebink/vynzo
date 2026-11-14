@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Cron wrapper: load .env, run one worker job, log to logs/<package>_<job>_<date>.log.
-#   infra/cron/run_job.sh <python-package> <job> [job args...]
+#   vynzo_batch/cron/run_job.sh <python-package> <job> [job args...]
 #   e.g.  market_ingestion eod
 #         analytics_worker high-volume-buy --days 3
 # - Never runs the same <package> <job> twice at once (flock on logs/.<package>_<job>.lock);

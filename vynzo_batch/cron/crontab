@@ -1,7 +1,7 @@
 # VYNZO scheduled jobs. Server clock is UTC; IST = UTC+5:30.
 # Install by appending to the existing crontab (never replace it wholesale), from the repo root
 # on the server; adjust VYNZO_ROOT first if the path differs:
-#   (crontab -l; cat infra/cron/crontab) | crontab -
+#   (crontab -l; cat vynzo_batch/cron/crontab) | crontab -
 # Times match the old vinzo-core schedule.
 
 SHELL=/bin/bash
@@ -12,14 +12,14 @@ VYNZO_ROOT=/home/admin/vynzo
 # Mon-Fri 17:00 IST: EOD ingest, then indicators and signals, then Market opportunities (close
 # open picks against today's bar, then rank today's), then the freshness check.
 # high-volume-buy scans the last 3 sessions (idempotent), so a skipped day heals itself.
-30 11 * * 1-5  $VYNZO_ROOT/infra/cron/run_job.sh market_ingestion eod && $VYNZO_ROOT/infra/cron/run_job.sh analytics_worker indicators && $VYNZO_ROOT/infra/cron/run_job.sh analytics_worker high-volume-buy --days 3 && $VYNZO_ROOT/infra/cron/run_job.sh analytics_worker opportunity-outcomes && $VYNZO_ROOT/infra/cron/run_job.sh analytics_worker opportunities && $VYNZO_ROOT/infra/cron/run_job.sh market_ingestion freshness
+30 11 * * 1-5  $VYNZO_ROOT/vynzo_batch/cron/run_job.sh market_ingestion eod && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker indicators && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker high-volume-buy --days 3 && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker opportunity-outcomes && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker opportunities && $VYNZO_ROOT/vynzo_batch/cron/run_job.sh market_ingestion freshness
 
 # Daily 07:30 IST (weekends too; news doesn't stop): news sentiment per company from Google News
 # and Yahoo Finance headlines, scored through OpenRouter (needs OPENROUTER_API_KEY in .env).
-0 2 * * *      $VYNZO_ROOT/infra/cron/run_job.sh analytics_worker sentiment
+0 2 * * *      $VYNZO_ROOT/vynzo_batch/cron/run_job.sh analytics_worker sentiment
 
 # Daily 18:30 IST: data freshness (pushes to Uptime Kuma when KUMA_PUSH_URL is set)
-0 13 * * *     $VYNZO_ROOT/infra/cron/run_job.sh market_ingestion freshness
+0 13 * * *     $VYNZO_ROOT/vynzo_batch/cron/run_job.sh market_ingestion freshness
 
 # Daily 02:30 IST: database backup
-0 21 * * *     $VYNZO_ROOT/scripts/backup_db.sh >> $VYNZO_ROOT/logs/backup.log 2>&1
+0 21 * * *     $VYNZO_ROOT/vynzo_batch/backup_db.sh >> $VYNZO_ROOT/logs/backup.log 2>&1

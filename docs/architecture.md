@@ -13,18 +13,21 @@ vynzo/
 │   └── admin/                Internal operations dashboard                Phase 2
 ├── services/
 │   ├── api/                  FastAPI, modular by business domain          Phase 1
-│   ├── market-ingestion/     Provider adapters (NSE/BSE/vendors)          Phase 1 (Python)
-│   ├── fundamentals-worker/  Statements and corporate actions             Phase 1
-│   ├── analytics-worker/     Indicators, signals, news sentiment          Phase 1 (signals); rest Phase 2
 │   ├── candle-worker/        OHLCV aggregation and corrections            Phase 2
 │   ├── notification-worker/  Alerts delivery                              Phase 2
 │   └── market-processor/     Tick trade/quote normalization               Phase 3
+├── vynzo_batch/              Batch jobs run by cron
+│   ├── market-ingestion/     Provider adapters (NSE/BSE/vendors)          Phase 1 (Python)
+│   ├── fundamentals-worker/  Statements and corporate actions             Phase 1
+│   ├── analytics-worker/     Indicators, signals, news sentiment          Phase 1 (signals); rest Phase 2
+│   ├── cron/                 crontab and run_job.sh wrapper
+│   └── backup_db.sh          Nightly pg_dump
 ├── packages/                 Shared contracts (api-client, contracts)
 ├── database/
 │   ├── postgres/             TimescaleDB migrations (dbmate)              Phase 1
 │   ├── redis/                Cache key conventions                        Phase 2
 │   └── clickhouse/           Tick and order-book DDL                      Phase 3
-├── infra/                    compose/, cron/
+├── infra/                    compose/, systemd/
 ├── data/                     Local development data only
 ├── scripts/                  bootstrap, migrate, backup/restore
 ├── tests/                    Cross-service integration, e2e, replay

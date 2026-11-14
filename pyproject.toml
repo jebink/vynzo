@@ -10,9 +10,9 @@ package = false
 [tool.uv.workspace]
 members = [
     "services/api",
-    "services/market-ingestion",
-    "services/fundamentals-worker",
-    "services/analytics-worker",
+    "vynzo_batch/market-ingestion",
+    "vynzo_batch/fundamentals-worker",
+    "vynzo_batch/analytics-worker",
 ]
 
 [dependency-groups]

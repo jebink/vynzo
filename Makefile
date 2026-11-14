@@ -44,10 +44,10 @@ web:             ## Run the website on :3000
 	pnpm --filter @vynzo/web dev
 
 test:            ## Run all tests
-	uv run pytest services
+	uv run pytest services vynzo_batch
 	pnpm -r typecheck
 
 lint:            ## Lint Python and JS
-	uv run ruff check services
-	uv run ruff format --check services
+	uv run ruff check services vynzo_batch
+	uv run ruff format --check services vynzo_batch
 	pnpm -r lint

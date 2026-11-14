@@ -13,7 +13,7 @@
 #   on the server: installs dependencies from the lockfiles, backs up the database and migrates
 #   if a migration is pending, builds the web app, installs the systemd units from
 #   infra/systemd if they changed, restarts vynzo-api and vynzo-web, and health-checks both.
-#   It reports, but never rewrites, a crontab that differs from infra/cron/crontab.
+#   It reports, but never rewrites, a crontab that differs from vynzo_batch/cron/crontab.
 #   SSH asks for the server password once (none with an SSH key); sudo asks for it on restart.
 #   --dry-run connects and shows what would be shipped and deleted, and changes nothing.
 #
@@ -167,7 +167,7 @@ dev_deploy() {
 
   if [[ $checks -eq 1 ]]; then
     say "Checks (skip with --skip-checks)"
-    uv run pytest services -q
+    uv run pytest services vynzo_batch -q
     pnpm -r typecheck
   fi
 
@@ -216,7 +216,7 @@ pnpm install --frozen-lockfile
 pending="$(scripts/migrate.sh status | grep -c '^\[ \]' || true)"
 if [[ "$pending" -gt 0 ]]; then
   echo "$pending pending migration(s): backing up first"
-  scripts/backup_db.sh
+  vynzo_batch/backup_db.sh
   scripts/migrate.sh up
 else
   echo "no pending migrations"
@@ -247,11 +247,11 @@ REMOTE
 
   say "Cron"
   if remote bash -s -- "$DEV_DIR" <<'CRON'; then
-diff <(crontab -l | grep -v '^#' | grep .) <(grep -v '^#' "$1/infra/cron/crontab" | grep .)
+diff <(crontab -l | grep -v '^#' | grep .) <(grep -v '^#' "$1/vynzo_batch/cron/crontab" | grep .)
 CRON
-    echo "crontab matches infra/cron/crontab"
+    echo "crontab matches vynzo_batch/cron/crontab"
   else
-    echo "WARNING: the server crontab differs from infra/cron/crontab (diff above)."
+    echo "WARNING: the server crontab differs from vynzo_batch/cron/crontab (diff above)."
     echo "Update it by hand (docs/runbooks/identity-migration.md, step 'Install the new jobs')."
   fi
 
