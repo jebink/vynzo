@@ -286,3 +286,142 @@ def test_swing(client):
     assert rows[0]["as_of"] == "2026-11-06T00:00:00Z"
     assert len(client.get("/v1/signals/swing", params={"exchange": "NSE", "limit": 1}).json()) == 1
     assert client.get("/v1/signals/swing", params={"exchange": "BSE"}).json() == []
+
+
+def _add_provider_symbols(db_url, symbols):
+    with psycopg.connect(db_url) as conn:
+        for exchange, symbol in symbols:
+            conn.execute(
+                "INSERT INTO provider_symbols (provider, provider_symbol, listing_id) "
+                "SELECT 'yahoo', %s, listing_id FROM listings WHERE exchange = %s AND symbol = %s",
+                (f"{symbol}.{exchange}", exchange, symbol),
+            )
+
+
+def test_overview_lists_only_ingested_listings_with_sparkline(client, seeded):
+    _add_provider_symbols(seeded, [("NSE", "RELIANCE"), ("NSE", "TATAREL")])
+    r = client.get("/v1/market-data/overview", params={"points": 3})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["as_of"] == "2026-11-06T00:00:00Z"
+    assert body["points"] == 3
+    stocks = body["stocks"]
+    # NIFTY / RELI / BSE RELIANCE have no provider symbol, so they were never ingested
+    assert [(s["exchange"], s["symbol"]) for s in stocks] == [
+        ("NSE", "RELIANCE"),
+        ("NSE", "TATAREL"),
+    ]
+    rel, tata = stocks
+    assert rel["closes"] == [102.0, 103.0, 104.0]
+    assert rel["close"] == 104.0 and rel["previous_close"] == 103.0
+    assert rel["change_pct"] == pytest.approx(100 * (104.0 - 103.0) / 103.0)
+    assert rel["volume"] == 504
+    assert rel["latest_ts"] == "2026-11-06T00:00:00Z"
+    assert rel["company_name"] == "Reliance Industries Limited"
+    assert set(rel) == {
+        "listing_id",
+        "exchange",
+        "symbol",
+        "kind",
+        "company_name",
+        "is_active",
+        "latest_ts",
+        "close",
+        "previous_close",
+        "change_pct",
+        "volume",
+        "closes",
+    }
+    # Ingested but no bars in the window: still listed, with empty price fields
+    assert tata["closes"] == [] and tata["close"] is None and tata["change_pct"] is None
+    assert tata["latest_ts"] is None and tata["volume"] is None
+
+
+def test_overview_filters_and_validation(client, seeded):
+    _add_provider_symbols(seeded, [("NSE", "RELIANCE"), ("BSE", "RELIANCE")])
+    r = client.get("/v1/market-data/overview", params={"exchange": "bse"})
+    assert [(s["exchange"], s["symbol"]) for s in r.json()["stocks"]] == [("BSE", "RELIANCE")]
+    assert r.json()["as_of"] is None  # the BSE listing has no bars
+    r = client.get("/v1/market-data/overview")
+    assert r.json()["points"] == 60
+    assert len(r.json()["stocks"][1]["closes"]) == 5  # NSE RELIANCE: all 5 seeded bars
+    for bad in ({"points": 1}, {"points": 251}, {"exchange": "XYZ"}):
+        assert client.get("/v1/market-data/overview", params=bad).status_code == 422
+
+
+# ---- Ingestion selection (admin) ----
+
+SELECTION = "/v1/instruments/selection"
+
+
+def _row(resp, symbol):
+    return next(r for r in resp.json()["rows"] if r["symbol"] == symbol)
+
+
+def test_selection_lists_symbols_with_per_exchange_state(client):
+    r = client.get(SELECTION)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total"] == 4
+    assert body["selected"] == {"NSE": 4, "BSE": 0}
+    assert [x["symbol"] for x in body["rows"]] == ["NIFTY", "RELI", "RELIANCE", "TATAREL"]
+    rel = _row(r, "RELIANCE")
+    assert rel["company_name"] == "Reliance Industries Limited" and rel["kind"] == "equity"
+    assert rel["nse"]["is_active"] is True and rel["nse"]["provider_symbol"] is None
+    assert rel["nse"]["last_bar"] == "2026-11-06T00:00:00Z"
+    assert rel["bse"]["is_active"] is False and rel["bse"]["last_bar"] is None
+    assert _row(r, "TATAREL")["bse"] is None
+    assert set(rel) == {"symbol", "company_name", "isin", "kind", "nse", "bse"}
+    assert set(rel["nse"]) == {"listing_id", "is_active", "provider_symbol", "last_bar"}
+
+
+def test_selection_filters_and_paging(client):
+    names = lambda r: [x["symbol"] for x in r.json()["rows"]]  # noqa: E731
+    assert names(client.get(SELECTION, params={"q": "tata"})) == ["TATAREL"]
+    assert names(client.get(SELECTION, params={"q": "industries"})) == ["RELIANCE"]
+    r = client.get(SELECTION, params={"limit": 2, "offset": 1})
+    assert names(r) == ["RELI", "RELIANCE"] and r.json()["total"] == 4
+    assert client.get(SELECTION, params={"status": "unselected"}).json()["rows"] == []
+    assert client.get(SELECTION, params={"status": "bogus"}).status_code == 422
+    assert client.get(SELECTION, params={"limit": 201}).status_code == 422
+
+
+def test_selection_deselect_and_reselect_creates_provider_symbol(client):
+    r = client.put(f"{SELECTION}/NSE/RELI", json={"selected": False})
+    assert r.status_code == 200
+    assert r.json()["nse"]["is_active"] is False
+    r = client.get(SELECTION, params={"status": "unselected"})
+    assert [x["symbol"] for x in r.json()["rows"]] == ["RELI"]
+    assert r.json()["selected"] == {"NSE": 3, "BSE": 0}
+    r = client.put(f"{SELECTION}/nse/RELI", json={"selected": True})
+    assert r.json()["nse"] == {**r.json()["nse"], "is_active": True, "provider_symbol": "RELI.NS"}
+
+
+def test_selection_bse_existing_and_created_listing(client):
+    r = client.put(f"{SELECTION}/BSE/RELIANCE", json={"selected": True})
+    assert r.status_code == 200
+    assert r.json()["bse"]["is_active"] is True
+    assert r.json()["bse"]["provider_symbol"] == "RELIANCE.BO"
+    # TATAREL has no BSE listing yet: selecting BSE creates one for the same company
+    r = client.put(f"{SELECTION}/BSE/TATAREL", json={"selected": True})
+    assert r.status_code == 200
+    bse = r.json()["bse"]
+    assert bse["is_active"] is True and bse["provider_symbol"] == "TATAREL.BO"
+    assert client.get("/v1/instruments/listings/BSE/TATAREL").json()["company_name"] == (
+        "Tata Reliable Corp"
+    )
+    assert client.get(SELECTION).json()["selected"] == {"NSE": 4, "BSE": 2}
+    # Deselecting a BSE listing that does not exist is a no-op
+    r = client.put(f"{SELECTION}/BSE/RELI", json={"selected": False})
+    assert r.status_code == 200 and r.json()["bse"] is None
+
+
+def test_selection_errors(client):
+    r = client.put(f"{SELECTION}/NSE/NOPE", json={"selected": True})
+    assert r.status_code == 404 and r.json() == {"detail": "symbol not found"}
+    # No company to attach a BSE listing to (index / unlinked listing)
+    for symbol in ("NIFTY", "RELI"):
+        r = client.put(f"{SELECTION}/BSE/{symbol}", json={"selected": True})
+        assert r.status_code == 409
+    assert client.put(f"{SELECTION}/XYZ/RELI", json={"selected": True}).status_code == 422
+    assert client.put(f"{SELECTION}/NSE/RELI", json={}).status_code == 422

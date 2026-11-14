@@ -57,3 +57,26 @@ class IndicatorsResponse(BaseModel):
     exchange: str
     symbol: str
     rows: list[IndicatorRow]
+
+
+class StockSnapshot(BaseModel):
+    """One ingested listing's latest daily close, its change and recent closes for a sparkline."""
+
+    listing_id: int
+    exchange: str
+    symbol: str
+    kind: str
+    company_name: str | None
+    is_active: bool
+    latest_ts: datetime | None
+    close: float | None
+    previous_close: float | None
+    change_pct: float | None
+    volume: int | None
+    closes: list[float]
+
+
+class OverviewResponse(BaseModel):
+    as_of: datetime | None
+    points: int
+    stocks: list[StockSnapshot]

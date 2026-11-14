@@ -13,6 +13,12 @@ _LISTING_COLUMNS = """
 """
 
 
+def _like_patterns(q: str) -> tuple[str, str]:
+    """(prefix, substring) ILIKE patterns for `q`, with LIKE wildcards escaped (ESCAPE '\\')."""
+    escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"{escaped}%", f"%{escaped}%"
+
+
 def search_listings(
     conn: psycopg.Connection,
     *,
@@ -27,9 +33,7 @@ def search_listings(
         where.append(
             "(l.symbol ILIKE %(prefix)s ESCAPE '\\' OR c.name ILIKE %(substr)s ESCAPE '\\')"
         )
-        escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        params["prefix"] = f"{escaped}%"
-        params["substr"] = f"%{escaped}%"
+        params["prefix"], params["substr"] = _like_patterns(q)
         params["exact"] = q.upper()
     if exchange:
         where.append("l.exchange = %(exchange)s")

@@ -81,6 +81,29 @@ export interface IndicatorsResponse {
   rows: IndicatorRow[];
 }
 
+/** One ingested stock in `GET /v1/market-data/overview`. `closes` are daily, oldest first. */
+export interface StockSnapshot {
+  listing_id: number;
+  exchange: Exchange;
+  symbol: string;
+  kind: string;
+  company_name: string | null;
+  is_active: boolean;
+  latest_ts: string | null;
+  close: number | null;
+  previous_close: number | null;
+  change_pct: number | null;
+  volume: number | null;
+  closes: number[];
+}
+
+/** `GET /v1/market-data/overview` */
+export interface OverviewResponse {
+  as_of: string | null;
+  points: number;
+  stocks: StockSnapshot[];
+}
+
 // ---- Signals ----
 
 /** `GET /v1/signals/types` item */

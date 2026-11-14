@@ -6,6 +6,7 @@ import type {
   IndicatorsResponse,
   Listing,
   ListingDetail,
+  OverviewResponse,
   Signal,
   SignalTypeSummary,
   SwingSignal,
@@ -70,6 +71,14 @@ export function getIndicators(
     `/v1/market-data/${stockPath(exchange, symbol)}/indicators${query(params)}`,
     opts(signal),
   );
+}
+
+/** Every ingested stock with its latest close, change and last `points` daily closes. */
+export function getOverview(
+  params: { exchange?: Exchange; points?: number },
+  signal?: AbortSignal,
+): Promise<OverviewResponse> {
+  return apiGet(`/v1/market-data/overview${query(params)}`, opts(signal));
 }
 
 // ---- Signals ----

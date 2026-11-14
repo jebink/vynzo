@@ -9,16 +9,33 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.core.dependencies import get_db
 from app.modules.instruments.service import ListingNotFound
 from app.modules.market_data import service
-from app.modules.market_data.schemas import BarsResponse, IndicatorsResponse, Timeframe
+from app.modules.market_data.schemas import (
+    BarsResponse,
+    IndicatorsResponse,
+    OverviewResponse,
+    Timeframe,
+)
 
 router = APIRouter(prefix="/market-data", tags=["market-data"])
 
 Conn = Annotated[psycopg.Connection, Depends(get_db)]
 Limit = Annotated[int, Query(ge=1, le=5000)]
 
+EXCHANGE_PATTERN = "(?i)^(NSE|BSE)$"
+
 
 def _not_found() -> HTTPException:
     return HTTPException(status_code=404, detail="listing not found")
+
+
+@router.get("/overview", response_model=OverviewResponse)
+def get_overview(
+    conn: Conn,
+    exchange: Annotated[str | None, Query(pattern=EXCHANGE_PATTERN)] = None,
+    points: Annotated[int, Query(ge=2, le=250)] = 60,
+):
+    """Every ingested stock with its latest daily close, change and last `points` closes."""
+    return service.get_overview(conn, exchange=exchange, points=points)
 
 
 @router.get("/{exchange}/{symbol}/bars", response_model=BarsResponse)

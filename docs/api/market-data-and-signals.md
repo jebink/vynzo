@@ -39,6 +39,26 @@ One listing (same shape as above), plus `latest` (the newest `ohlcv_1d` bar, or 
 
 ## Market data (module `market_data`)
 
+### `GET /v1/market-data/overview`
+Every ingested listing (one with a row in `provider_symbols`) with its latest daily close and its
+last `points` daily closes, for directory pages and sparklines. Used by the web `/stocks` page.
+| Query | Default | Notes |
+|---|---|---|
+| `exchange` | none | `NSE` or `BSE` (case-insensitive) |
+| `points` | `60` | 2–250; daily closes per stock |
+
+```json
+{"as_of": "2026-11-13T00:00:00Z", "points": 60,
+ "stocks": [{"listing_id": 248, "exchange": "NSE", "symbol": "RELIANCE", "kind": "equity",
+             "company_name": "Reliance Industries Limited", "is_active": true,
+             "latest_ts": "2026-11-13T00:00:00Z", "close": 1339.7, "previous_close": 1339.7,
+             "change_pct": 0.0, "volume": 13800000, "closes": [1324.0, 1339.7]}]}
+```
+Sorted by `symbol`, then `exchange`. `closes` is ascending by date. Only bars within
+`points × 2 + 14` calendar days of the newest bar in `ohlcv_1d` are read, so a listing whose data
+stopped before that has empty `closes` and `null` price fields; it is still listed. `as_of` is the
+newest `latest_ts`, or `null` when no listing has bars.
+
 ### `GET /v1/market-data/{exchange}/{symbol}/bars`
 | Query | Default | Notes |
 |---|---|---|
