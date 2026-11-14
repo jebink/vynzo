@@ -8,16 +8,9 @@ import { formatDate } from "@/lib/format";
 import { getOpportunities } from "@/lib/market-api";
 import type { Confidence, Direction, Horizon, MarketRegime, Opportunity } from "@/lib/types";
 import { CAP_OPTIONS, type CapFilter, matchesCompany, SectorSelect } from "@/components/company-filters";
-import { HORIZONS, STRATEGIES } from "./horizons";
+import { FACTOR_CONFLUENCE, HORIZONS, STRATEGIES } from "./horizons";
 import { OpportunityCard } from "./opportunity-card";
 import { PerformancePanel } from "./performance-panel";
-
-// The original engine: picks from the six-factor score alone, with no named setup attached.
-const FACTOR_CONFLUENCE = {
-  key: "factor_confluence",
-  name: "Factor confluence",
-  description: "At least three of six factor groups (trend, momentum, price action, volume, volatility, relative strength) agree, with no named setup.",
-};
 
 function matchesStrategy(pick: Opportunity, key: string): boolean {
   return key === FACTOR_CONFLUENCE.key ? pick.setups.length === 0 : pick.setups.some((s) => s.key === key);

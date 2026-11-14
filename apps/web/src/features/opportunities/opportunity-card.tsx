@@ -6,7 +6,7 @@ import { ExchangeBadge } from "@/components/exchange-badge";
 import { formatPrice } from "@/lib/format";
 import { stockHref } from "@/lib/routes";
 import type { FactorScore, Opportunity } from "@/lib/types";
-import { FACTOR_LABELS, setupLabel } from "./horizons";
+import { FACTOR_CONFLUENCE, FACTOR_LABELS, setupLabel } from "./horizons";
 
 const DIRECTION_STYLE = {
   BUY: {
@@ -57,19 +57,20 @@ export function OpportunityCard({ pick }: { pick: Opportunity }) {
           <p className="mt-0.5 truncate text-sm text-zinc-600 dark:text-zinc-400">
             {pick.company_name ?? "—"}
           </p>
-          {pick.setups.length ? (
-            <ul aria-label="Strategy setups" className="mt-2 flex flex-wrap gap-1.5">
-              {pick.setups.map((setup) => (
-                <li
-                  key={`${setup.key}:${setup.variant}`}
-                  title={setup.reason}
-                  className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-300"
-                >
-                  {setupLabel(setup.key, setup.variant)}
-                </li>
-              ))}
-            </ul>
-          ) : null}
+          <ul aria-label="Strategy setups" className="mt-2 flex flex-wrap gap-1.5">
+            {(pick.setups.length
+              ? pick.setups.map((s) => ({ id: `${s.key}:${s.variant}`, label: setupLabel(s.key, s.variant), reason: s.reason }))
+              : [{ id: FACTOR_CONFLUENCE.key, label: FACTOR_CONFLUENCE.name, reason: FACTOR_CONFLUENCE.description }]
+            ).map((tag) => (
+              <li
+                key={tag.id}
+                title={tag.reason}
+                className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-300"
+              >
+                {tag.label}
+              </li>
+            ))}
+          </ul>
         </div>
         <div className="text-right">
           <p className="text-2xl font-semibold leading-none tabular-nums">

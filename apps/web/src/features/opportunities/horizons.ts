@@ -52,6 +52,13 @@ export const STRATEGIES: readonly { key: string; name: string; description: stri
   { key: "chart_pattern", name: "Chart pattern", description: "Broke out of a flag, cup and handle, double bottom or ascending triangle." },
 ];
 
+// The original engine: picks from the six-factor score alone, with no named setup attached.
+export const FACTOR_CONFLUENCE = {
+  key: "factor_confluence",
+  name: "Factor confluence",
+  description: "At least three of six factor groups (trend, momentum, price action, volume, volatility, relative strength) agree, with no named setup.",
+};
+
 const PATTERN_LABELS: Record<string, string> = {
   flag: "Flag",
   cup_and_handle: "Cup and handle",
