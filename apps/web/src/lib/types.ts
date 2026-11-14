@@ -408,6 +408,8 @@ export interface ModelForecast {
   horizon: number;
   /** What the model would have predicted over past sessions (forecasts made every `horizon`). */
   history: { date: string; close: number }[];
+  /** The model continued past the last bar (365 sessions); untested this far out. */
+  projection: { date: string; close: number }[];
   /** Walk-forward score: mean absolute % error and share of 20-day directions called right. */
   metrics: { mape: number | null; hit_rate: number | null; n: number | null };
 }

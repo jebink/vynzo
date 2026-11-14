@@ -1,9 +1,12 @@
+from datetime import date
+
 import numpy as np
 import pytest
 from analytics_worker.forecasting.models import (
     MODELS,
     backtest_path,
     naive_drift,
+    next_sessions,
 )
 
 H = 20
@@ -52,3 +55,9 @@ def test_suspended_then_jump_stays_finite_and_bounded(name):
     closes = np.r_[np.full(500, 144.15), 143.85, 151.04]  # carried-forward prices, then a gap
     pred = MODELS[name](closes, H)
     assert np.isfinite(pred).all() and pred.max() < closes[-1] * 3
+
+
+def test_next_sessions_skips_weekends():
+    friday = date(2026, 11, 13)
+    assert next_sessions(friday, 3) == [date(2026, 11, 16), date(2026, 11, 17), date(2026, 11, 18)]
+    assert len(next_sessions(friday, 365)) == 365

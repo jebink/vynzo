@@ -49,10 +49,11 @@ export interface PriceChartData {
 
 type Point = { time: string; value: number };
 
-/** One model's past predictions: what it would have said for each session at the time. */
+/** One model's line: what it would have predicted for past sessions, then its projection. */
 export interface ForecastLine {
   color: string;
   history: Point[];
+  future: Point[];
 }
 
 const MARKER_STYLE: Record<ChartMarkerKind, Omit<SeriesMarkerBar<Time>, "time">> = {
@@ -185,17 +186,21 @@ export function PriceChart({ data, levels = [] }: { data: PriceChartData; levels
       rsiPane?.setStretchFactor(1);
     }
 
-    for (const f of data.forecasts ?? []) {
-      if (f.history.length === 0) continue;
-      chart
-        .addSeries(LineSeries, {
-          color: f.color,
-          lineWidth: 2,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          crosshairMarkerVisible: false,
-        })
-        .setData(f.history);
+    const forecasts = data.forecasts ?? [];
+    const lastTime = data.bars.length ? tradingDate(data.bars[data.bars.length - 1].ts) : "";
+    let ahead = 0;
+    for (const f of forecasts) {
+      const style = { color: f.color, priceLineVisible: false, crosshairMarkerVisible: false };
+      if (f.history.length > 0) chart.addSeries(LineSeries, { ...style, lineWidth: 2, lastValueVisible: false }).setData(f.history);
+      // A period still in progress already has its candle: the projection starts after it.
+      const future = f.future.filter((p) => p.time > lastTime);
+      ahead = Math.max(ahead, future.length);
+      if (future.length > 0) {
+        const last = data.bars[data.bars.length - 1];
+        chart
+          .addSeries(LineSeries, { ...style, lineWidth: 2, lastValueVisible: true })
+          .setData([{ time: lastTime, value: last.close }, ...future]);
+      }
     }
 
     const barTimes = new Set(data.bars.map((bar) => tradingDate(bar.ts)));
@@ -207,7 +212,7 @@ export function PriceChart({ data, levels = [] }: { data: PriceChartData; levels
 
     const count = data.bars.length;
     if (count > data.initialBars) {
-      chart.timeScale().setVisibleLogicalRange({ from: count - data.initialBars, to: count + 3 });
+      chart.timeScale().setVisibleLogicalRange({ from: count - data.initialBars, to: count + ahead + 3 });
     } else {
       chart.timeScale().fitContent();
     }

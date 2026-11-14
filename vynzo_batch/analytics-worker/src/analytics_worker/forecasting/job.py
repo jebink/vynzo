@@ -11,12 +11,13 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from analytics_worker.db import load_daily_bars
-from analytics_worker.forecasting.models import MODELS, backtest_path
+from analytics_worker.forecasting.models import MODELS, backtest_path, next_sessions
 
 log = logging.getLogger(__name__)
 
 HORIZON = 30
 HISTORY = 500  # sessions of past forecasts: the bars the stock chart loads
+PROJECTION = 365  # sessions projected past the last bar (untested this far out: shown as such)
 MIN_BARS = 300  # a year of history plus the horizon
 
 LISTINGS_SQL = """
@@ -26,10 +27,11 @@ WHERE l.is_active AND l.kind = 'equity'
 ORDER BY l.listing_id
 """
 UPSERT_SQL = """
-INSERT INTO price_forecast (listing_id, model, as_of, horizon, history, metrics)
-VALUES (%(listing_id)s, %(model)s, %(as_of)s, %(horizon)s, %(history)s, %(metrics)s)
+INSERT INTO price_forecast (listing_id, model, as_of, horizon, history, projection, metrics)
+VALUES (%(listing_id)s, %(model)s, %(as_of)s, %(horizon)s, %(history)s, %(projection)s,
+        %(metrics)s)
 ON CONFLICT (listing_id, model, as_of) DO UPDATE
-SET horizon = EXCLUDED.horizon, history = EXCLUDED.history,
+SET horizon = EXCLUDED.horizon, history = EXCLUDED.history, projection = EXCLUDED.projection,
     metrics = EXCLUDED.metrics,
     created_at = now()
 """
@@ -51,6 +53,15 @@ def forecast_rows(listing_id: int, bars) -> list[dict]:
         if not np.isfinite(path[~np.isnan(path)]).all():
             log.warning("listing %s: %s gave a non-finite forecast, skipped", listing_id, name)
             continue
+        ahead = model(closes, PROJECTION)
+        if not np.isfinite(ahead).all():
+            log.warning("listing %s: %s gave a non-finite projection, skipped", listing_id, name)
+            continue
+        dates = next_sessions(bars.index[-1].date(), PROJECTION)
+        projection = [
+            {"date": d.isoformat(), "close": round(float(p), 2)}
+            for d, p in zip(dates, ahead, strict=True)
+        ]
         days = bars.index[-len(path) :]
         history = [
             {"date": ts.date().isoformat(), "close": round(float(p), 2)}
@@ -64,6 +75,7 @@ def forecast_rows(listing_id: int, bars) -> list[dict]:
                 "as_of": bars.index[-1].date(),
                 "horizon": HORIZON,
                 "history": Jsonb(history),
+                "projection": Jsonb(projection),
                 "metrics": Jsonb(metrics or {}),
             }
         )

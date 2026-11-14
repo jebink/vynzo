@@ -43,7 +43,7 @@ function resample(points: DailyPoint[], timeframe: Timeframe): DailyPoint[] {
 
 export function toLine(f: ModelForecast, timeframe: Timeframe): ForecastLine {
   const line = (points: DailyPoint[]) => resample(points, timeframe).map((p) => ({ time: p.date, value: p.close }));
-  return { color: meta(f.model).color, history: line(f.history) };
+  return { color: meta(f.model).color, history: line(f.history), future: line(f.projection) };
 }
 
 export interface Deviation {

@@ -162,7 +162,9 @@ export function StockChartPanel({
           />
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             The line is what each model would have predicted at the time, from forecasts made every{" "}
-            {shownForecasts[0].horizon} sessions using only earlier prices. Deviation is
+            {shownForecasts[0].horizon} sessions using only earlier prices; after the last candle it continues{" "}
+            {shownForecasts[0].projection.length} sessions ahead. Only the past part is scored: that far out the
+            projection is the model&apos;s trend extended, not a tested forecast. Deviation is
             how far the actual close is from the prediction (+ = above).
             {daily ? "" : " Weekly and monthly views use each period\u2019s last-session prediction."} Statistical projection from past prices,
             not advice.

@@ -101,6 +101,7 @@ class ModelForecast(BaseModel):
     as_of: date
     horizon: int
     history: list[ForecastPoint]  # what the model would have predicted over past sessions
+    projection: list[ForecastPoint]  # sessions after the last bar
     metrics: ForecastMetrics
 
 

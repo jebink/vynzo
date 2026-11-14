@@ -6,6 +6,7 @@ log prices, so a forecast can never go negative.
 """
 
 from collections.abc import Callable
+from datetime import date, timedelta
 
 import numpy as np
 
@@ -116,3 +117,15 @@ def backtest_path(
         return path, None
     mape = float(np.mean(np.concatenate(errors))) * 100
     return path, {"mape": round(mape, 2), "hit_rate": round(hits / n, 2), "n": n}
+
+
+def next_sessions(last: date, count: int) -> list[date]:
+    """The next `count` weekdays after `last`."""
+    # shortcut: weekends only, no NSE holiday calendar in the repo (~15 a year, so a 365-session
+    # projection ends ~3 weeks late); add one if dates far out matter.
+    out, d = [], last
+    while len(out) < count:
+        d += timedelta(days=1)
+        if d.weekday() < 5:
+            out.append(d)
+    return out
