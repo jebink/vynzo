@@ -189,6 +189,23 @@ def test_extract_json_tolerates_fences_and_prose():
         llm.extract_json("no json here")
 
 
+def test_free_json_models_keeps_free_json_capable_only():
+    listed = [
+        {"id": "a/x:free", "supported_parameters": ["response_format"]},
+        {"id": "b/y:free", "supported_parameters": ["tools"]},  # no JSON mode
+        {"id": "c/z", "supported_parameters": ["response_format"]},  # paid
+        {"id": "d/w:free", "supported_parameters": ["structured_outputs"]},
+    ]
+    assert llm.free_json_models(listed) == ["a/x:free", "d/w:free"]
+
+
+def test_order_models_prefers_configured_then_known_good_and_drops_unavailable():
+    known = llm.FALLBACK_MODELS[1]
+    ordered = llm.order_models("gone:free", ["other:free", known])
+    assert ordered == [known, "other:free"]  # "gone" is not available today
+    assert llm.order_models(None, None) == list(llm.FALLBACK_MODELS)[: llm.MAX_CANDIDATES]
+
+
 # ---- job ----
 
 
@@ -259,7 +276,13 @@ def test_job_scores_dedupes_companies_and_stores_headlines():
         return {"results": [{"symbol": "INFY", "score": 0.6, "summary": "Good"}]}, "m:free"
 
     report = run_sentiment(
-        conn, api_key="k", model=None, as_of=date(2026, 11, 14), fetch=fetch, chat=chat
+        conn,
+        api_key="k",
+        model=None,
+        as_of=date(2026, 11, 14),
+        fetch=fetch,
+        chat=chat,
+        list_models=lambda _m: ["m:free"],
     )
     assert (report.companies, report.with_news, report.no_news) == (3, 2, 1)
     assert report.scored == 1 and report.failed == ["MISSED"] and report.requests == 1
@@ -291,6 +314,7 @@ def test_job_stops_calling_when_quota_is_spent():
         as_of=date(2026, 11, 14),
         fetch=lambda symbol, *_: [_h(f"{symbol} news", 1)],
         chat=chat,
+        list_models=lambda _m: ["m:free"],
         pause_s=0,
     )
     assert calls == 1 and report.quota_exhausted

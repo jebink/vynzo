@@ -161,6 +161,7 @@ def run_sentiment(
     limit: int | None = None,
     fetch: Callable[[str, str, str | None], list[Headline]] = fetch_headlines,
     chat: Callable[..., tuple[dict, str]] = llm.chat_json,
+    list_models: Callable[[str | None], list[str]] = llm.candidate_models,
     pause_s: float = PAUSE_S,
 ) -> SentimentReport:
     report = SentimentReport(as_of=as_of.isoformat())
@@ -183,6 +184,7 @@ def run_sentiment(
 
     newsy = [(c, h) for c, h in found if h]
     report.with_news = len(newsy)
+    models = list_models(model) if newsy else []
     for start in range(0, len(newsy), BATCH_SIZE):
         batch = newsy[start : start + BATCH_SIZE]
         symbols = [c.symbol for c, _ in batch]
@@ -193,7 +195,7 @@ def run_sentiment(
             time.sleep(pause_s)
         report.requests += 1
         try:
-            reply, used = chat(SYSTEM_PROMPT, build_prompt(batch), api_key=api_key, model=model)
+            reply, used = chat(SYSTEM_PROMPT, build_prompt(batch), api_key=api_key, models=models)
         except llm.QuotaExhausted:
             log.exception("free model quota exhausted after %s requests", report.requests)
             report.quota_exhausted = True

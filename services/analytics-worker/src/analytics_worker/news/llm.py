@@ -1,7 +1,9 @@
 """OpenRouter chat client (OpenAI-compatible) that asks for JSON and walks a list of free models.
 
-A model that is rate-limited or unavailable is skipped for the next one. When every model is
-rate-limited the free daily quota is spent: `QuotaExhausted` tells the job to stop calling.
+Free models come and go, so the job asks OpenRouter once per run which free models support JSON
+output (`candidate_models`) and falls back to a known-good list when that lookup fails. A model
+that is rate-limited, unavailable or replies with broken JSON is skipped for the next one. When
+every model is rate-limited the free daily quota is spent: `QuotaExhausted` stops the job calling.
 """
 
 import json
@@ -14,12 +16,17 @@ from typing import Any
 log = logging.getLogger(__name__)
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+MODELS_URL = "https://openrouter.ai/api/v1/models"
+# Tried first, in this order, when free and JSON-capable (checked 2026-11-14); the rest of
+# today's free JSON-capable models follow. Used as-is when the model list can't be fetched.
 FALLBACK_MODELS = (
     "google/gemma-4-26b-a4b-it:free",
-    "qwen/qwen3.8-27b:free",
-    "nvidia/nemotron-3.5-lightning:free",
-    "liquid/lfm-2.5-2.6b:free",
+    "google/gemma-4-31b-it:free",
+    "nvidia/nemotron-3.5-super-vl:free",
+    "inclusionai/ling-3.2-flash:free",
+    "baidu/ernie-5.5-flash-preview:free",
 )
+MAX_CANDIDATES = 6
 SKIP_STATUSES = {404, 408, 429, 500, 502, 503}
 TIMEOUT_S = 120
 
@@ -61,20 +68,51 @@ def _message_text(body: dict[str, Any]) -> str:
     return content if isinstance(content, str) else ""
 
 
-def models_to_try(preferred: str | None) -> list[str]:
-    return list(dict.fromkeys(m for m in (preferred, *FALLBACK_MODELS) if m))
+def free_json_models(models: list[dict[str, Any]]) -> list[str]:
+    """Ids of free models that accept a JSON response format, from OpenRouter's model list."""
+    out = []
+    for m in models:
+        params = m.get("supported_parameters") or []
+        if str(m.get("id", "")).endswith(":free") and (
+            "response_format" in params or "structured_outputs" in params
+        ):
+            out.append(m["id"])
+    return out
+
+
+def order_models(preferred: str | None, available: list[str] | None) -> list[str]:
+    """Preferred, then the known-good list, then the other available ones; only available ones
+    when the list is known."""
+    ordered = dict.fromkeys(m for m in (preferred, *FALLBACK_MODELS, *(available or [])) if m)
+    if available is not None:
+        ordered = {m: None for m in ordered if m in set(available)}
+    return list(ordered)[:MAX_CANDIDATES]
+
+
+def candidate_models(preferred: str | None) -> list[str]:
+    try:
+        req = urllib.request.Request(MODELS_URL, headers={"Accept": "application/json"})  # noqa: S310
+        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
+            available = free_json_models(json.loads(resp.read().decode()).get("data") or [])
+    except (OSError, ValueError) as exc:
+        log.warning("could not list OpenRouter models, using the fallback list: %s", exc)
+        available = None
+    models = order_models(preferred, available or None)
+    log.info("model candidates: %s", models)
+    return models
 
 
 def chat_json(
-    system: str, user: str, *, api_key: str, model: str | None = None, max_tokens: int = 3000
+    system: str, user: str, *, api_key: str, models: list[str], max_tokens: int = 3000
 ) -> tuple[dict[str, Any], str]:
-    """(parsed JSON reply, model that produced it)."""
+    """(parsed JSON reply, model that produced it), trying ``models`` in order."""
     if not api_key:
         raise LLMError("OPENROUTER_API_KEY is not set")
+    if not models:
+        raise LLMError("no models to try")
     errors: list[str] = []
     rate_limited = 0
-    candidates = models_to_try(model)
-    for model_id in candidates:
+    for model_id in models:
         payload = {
             "model": model_id,
             "temperature": 0.1,
@@ -107,6 +145,6 @@ def chat_json(
         except (LLMError, json.JSONDecodeError, TimeoutError, urllib.error.URLError) as exc:
             errors.append(f"{model_id}: {exc}")
         log.warning("model %s failed: %s", model_id, errors[-1])
-    if rate_limited == len(candidates):
+    if rate_limited == len(models):
         raise QuotaExhausted("; ".join(errors))
     raise LLMError("; ".join(errors))
