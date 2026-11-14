@@ -14,6 +14,10 @@ VYNZO_ROOT=/home/admin/vynzo
 # high-volume-buy scans the last 3 sessions (idempotent), so a skipped day heals itself.
 30 11 * * 1-5  $VYNZO_ROOT/infra/cron/run_job.sh market_ingestion eod && $VYNZO_ROOT/infra/cron/run_job.sh analytics_worker indicators && $VYNZO_ROOT/infra/cron/run_job.sh analytics_worker high-volume-buy --days 3 && $VYNZO_ROOT/infra/cron/run_job.sh analytics_worker opportunity-outcomes && $VYNZO_ROOT/infra/cron/run_job.sh analytics_worker opportunities && $VYNZO_ROOT/infra/cron/run_job.sh market_ingestion freshness
 
+# Daily 07:30 IST (weekends too; news doesn't stop): news sentiment per company from Google News
+# and Yahoo Finance headlines, scored through OpenRouter (needs OPENROUTER_API_KEY in .env).
+0 2 * * *      $VYNZO_ROOT/infra/cron/run_job.sh analytics_worker sentiment
+
 # Daily 18:30 IST: data freshness (pushes to Uptime Kuma when KUMA_PUSH_URL is set)
 0 13 * * *     $VYNZO_ROOT/infra/cron/run_job.sh market_ingestion freshness
 

@@ -12,3 +12,5 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql://market:CHANGE_ME@localhost:5432/market"
     log_level: str = "INFO"
+    openrouter_api_key: str = ""
+    openrouter_model: str = "google/gemma-4-26b-a4b-it:free"

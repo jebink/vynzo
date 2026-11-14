@@ -8,8 +8,9 @@ import dataclasses
 import json
 import logging
 import sys
-from datetime import date
+from datetime import date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -21,6 +22,7 @@ from analytics_worker.opportunities.job import run_opportunities, run_outcomes
 from analytics_worker.signals.high_volume_buy import run_high_volume_buy
 
 FAIL_RATIO = 0.1
+IST = ZoneInfo("Asia/Kolkata")
 
 
 def _emit(summary: Any) -> None:
@@ -75,8 +77,20 @@ def swing(args: argparse.Namespace, settings: Settings) -> int:
 
 
 def sentiment(args: argparse.Namespace, settings: Settings) -> int:
-    """Fetch news and score sentiment."""
-    raise NotImplementedError("sentiment: not ported yet")
+    """Score news sentiment per company for today (IST), or --as-of; --limit for a trial run."""
+    from analytics_worker.news.job import run_sentiment
+
+    as_of = args.as_of or datetime.now(IST).date()
+    with connect(settings.database_url) as conn:
+        report = run_sentiment(
+            conn,
+            api_key=settings.openrouter_api_key,
+            model=settings.openrouter_model,
+            as_of=as_of,
+            limit=args.limit,
+        )
+    _emit(report)
+    return 1 if report.companies and len(report.failed) > FAIL_RATIO * report.companies else 0
 
 
 JOBS = {
@@ -98,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
         "--as-of",
         type=date.fromisoformat,
         default=None,
-        help="high-volume-buy, opportunities: YYYY-MM-DD",
+        help="high-volume-buy, opportunities, sentiment: YYYY-MM-DD",
     )
     parser.add_argument(
         "--start", type=date.fromisoformat, default=None, help="backtest: first session"
@@ -110,6 +124,9 @@ def main(argv: list[str] | None = None) -> int:
         "--split", type=date.fromisoformat, default=None, help="backtest: out-of-sample from"
     )
     parser.add_argument("--workers", type=int, default=8, help="backtest: processes")
+    parser.add_argument(
+        "--limit", type=int, default=None, help="sentiment: score only the first N companies"
+    )
     args = parser.parse_args(argv)
     settings = Settings()
     logging.basicConfig(level=settings.log_level, stream=sys.stderr)

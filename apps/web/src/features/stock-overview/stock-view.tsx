@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { EmptyState, ErrorState, LoadingState } from "@/components/status";
+import { SentimentPanel } from "@/features/news-sentiment/sentiment-panel";
 import { StockChartPanel } from "@/features/price-charts/stock-chart-panel";
 import { SignalsTable } from "@/features/signals/components/signals-table";
 import { useAsync } from "@/hooks/use-async";
@@ -31,6 +32,7 @@ export function StockView({ exchange, symbol }: { exchange: Exchange; symbol: st
         <StockHeaderSkeleton symbol={symbol} exchange={exchange} />
       )}
       <StockChartPanel exchange={exchange} symbol={symbol} />
+      <SentimentPanel symbol={symbol} />
       <StockSignals exchange={exchange} symbol={symbol} />
     </div>
   );
