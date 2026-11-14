@@ -83,7 +83,7 @@ export function NewsRadar() {
       ) : shown.length === 0 ? (
         <EmptyState title="No market news yet" description="Stocks appear here once the next news scan scores them." />
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="grid gap-3 sm:grid-cols-2">
           {shown.slice(0, SHOWN).map((item) => (
             <li key={item.id}>
               <NewsCard item={item} />

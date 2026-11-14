@@ -14,11 +14,13 @@ from typing import Any
 from market_ingestion.config import REPO_ROOT, Settings
 from market_ingestion.db import connect
 from market_ingestion.freshness import check_freshness
+from market_ingestion.instruments.events import sync_events
 from market_ingestion.instruments.profiles import sync_profiles
 from market_ingestion.instruments.reference import sync_reference
 from market_ingestion.instruments.registry import find_listing
 from market_ingestion.pipeline import EodReport, run_backfill, run_eod
 from market_ingestion.providers.vendor.yahoo import YahooProvider
+from market_ingestion.sessions import IST
 
 FAIL_RATIO = 0.1
 
@@ -90,12 +92,21 @@ def profiles(args: argparse.Namespace, settings: Settings) -> int:
     return 1 if len(report.failed) > FAIL_RATIO * report.companies else 0
 
 
+def events(args: argparse.Namespace, settings: Settings) -> int:
+    """Upcoming results and ex-dividend dates per company from Yahoo Finance."""
+    with connect(settings.database_url) as conn:
+        report = sync_events(conn, datetime.now(IST).date())
+    _emit(report)
+    return 1 if len(report.failed) > FAIL_RATIO * report.listings else 0
+
+
 JOBS = {
     "eod": eod_ingest,
     "backfill": backfill,
     "freshness": freshness,
     "sync-reference": sync_reference_job,
     "profiles": profiles,
+    "events": events,
 }
 
 

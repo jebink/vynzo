@@ -3,6 +3,7 @@ import { API_BASE_URL, ApiError, apiGet, apiPut } from "@/lib/api";
 import type {
   BacktestEvent,
   BarsResponse,
+  CorporateEvent,
   Exchange,
   IndicatorsResponse,
   Listing,
@@ -107,6 +108,13 @@ export function getOverview(
 
 export function getSignalTypes(signal?: AbortSignal): Promise<SignalTypeSummary[]> {
   return apiGet(`/v1/signals/types`, opts(signal));
+}
+
+export function getUpcomingEvents(
+  params: { days?: number; limit?: number },
+  signal?: AbortSignal,
+): Promise<CorporateEvent[]> {
+  return apiGet(`/v1/fundamentals/events${query(params)}`, opts(signal));
 }
 
 export function getSignals(

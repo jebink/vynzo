@@ -382,3 +382,14 @@ export type BacktestEvent = { cached?: boolean } & (
   | { type: "progress"; done: number; through: string; trades: BacktestTrade[] }
   | { type: "done"; summary: Record<string, BacktestSummary> }
 );
+
+/** One row of `GET /v1/fundamentals/events` (upcoming results and ex-dividend dates). */
+export interface CorporateEvent {
+  exchange: Exchange;
+  symbol: string;
+  company_name: string | null;
+  event_type: "results" | "ex_dividend";
+  event_date: string; // YYYY-MM-DD
+  details: { amount?: number; eps_estimate?: number; window_end?: string };
+  source: string;
+}
