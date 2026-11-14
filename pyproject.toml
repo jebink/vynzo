@@ -1,0 +1,33 @@
+# uv workspace root. Each Python service has its own pyproject.toml; one lockfile (uv.lock) for all.
+[project]
+name = "vynzo"
+version = "0.1.0"
+requires-python = ">=3.13"
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = [
+    "services/api",
+    "services/market-ingestion",
+    "services/fundamentals-worker",
+    "services/analytics-worker",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4",
+    "httpx>=0.28",
+    "ruff>=0.13",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"

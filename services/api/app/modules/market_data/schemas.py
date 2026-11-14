@@ -1,0 +1,59 @@
+"""Pydantic request/response models for market_data (the public API contract)."""
+
+from datetime import datetime
+from typing import Literal
+
+from pydantic import BaseModel
+
+Timeframe = Literal["1d", "1w", "1mo", "75m", "15m", "5m", "1m"]
+
+
+class Bar(BaseModel):
+    ts: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: int
+
+
+class BarsResponse(BaseModel):
+    listing_id: int
+    exchange: str
+    symbol: str
+    timeframe: Timeframe
+    bars: list[Bar]
+
+
+class IndicatorRow(BaseModel):
+    ts: datetime
+    calc_version: str
+    rsi_14: float | None
+    ema_9: float | None
+    ema_21: float | None
+    ema_50: float | None
+    ema_200: float | None
+    macd: float | None
+    macd_signal: float | None
+    macd_hist: float | None
+    atr_14: float | None
+    vwap: float | None
+    adx_14: float | None
+    plus_di_14: float | None
+    minus_di_14: float | None
+    rvol_20: float | None
+    donchian_high_20: float | None
+    donchian_low_20: float | None
+    donchian_high_55: float | None
+    bb_width: float | None
+    obv: float | None
+    ema200_slope_20: float | None
+    extension_atr: float | None
+    ret_126: float | None
+
+
+class IndicatorsResponse(BaseModel):
+    listing_id: int
+    exchange: str
+    symbol: str
+    rows: list[IndicatorRow]

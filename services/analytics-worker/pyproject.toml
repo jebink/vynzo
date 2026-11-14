@@ -1,0 +1,22 @@
+[project]
+name = "vynzo-analytics-worker"
+version = "0.1.0"
+description = "Indicators, signals and (later) screening, ratios and grading batch jobs."
+requires-python = ">=3.13"
+dependencies = [
+    "psycopg[binary]>=3.2",
+    "pydantic-settings>=2.10",
+    "yfinance==1.8.0",
+    "pandas==3.1.1",
+    "numpy==2.5.4",
+]
+
+[project.scripts]
+analytics-worker = "analytics_worker.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/analytics_worker"]
