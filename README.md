@@ -37,3 +37,4 @@ make web               # http://localhost:3000
 Skeleton only. Worker jobs raise `NotImplementedError` and API modules have no endpoints yet.
 Features are being ported from the archived vinzo-core code (`vinzo-core-backup-2026-11-11.tar.gz`,
 kept outside the repo).
+# vynzo
