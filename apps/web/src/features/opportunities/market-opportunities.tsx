@@ -7,7 +7,7 @@ import { useAsync } from "@/hooks/use-async";
 import { formatDate } from "@/lib/format";
 import { getOpportunities } from "@/lib/market-api";
 import type { Confidence, Direction, Horizon, MarketRegime, Opportunity } from "@/lib/types";
-import { HORIZONS } from "./horizons";
+import { HORIZONS, STRATEGIES } from "./horizons";
 import { OpportunityCard } from "./opportunity-card";
 import { PerformancePanel } from "./performance-panel";
 
@@ -46,16 +46,19 @@ export function MarketOpportunities() {
   const [horizon, setHorizon] = useState<Horizon>("swing");
   const [direction, setDirection] = useState<DirectionFilter>("ALL");
   const [confidence, setConfidence] = useState<ConfidenceFilter>("any");
+  const [strategy, setStrategy] = useState<string>("any");
   const [view, setView] = useState<View>("picks");
   const data = useAsync("opportunities", (signal) => getOpportunities(signal));
 
   const info = HORIZONS.find((h) => h.id === horizon) ?? HORIZONS[0];
   const all = data.data?.horizons[horizon] ?? [];
   const minConfidence = confidence === "any" ? 0 : CONFIDENCE_RANK[confidence];
+  const strategyFilter = horizon === "swing" ? strategy : "any";
   const shown = all.filter(
     (pick) =>
       (direction === "ALL" || pick.direction === direction) &&
-      CONFIDENCE_RANK[pick.confidence] >= minConfidence,
+      CONFIDENCE_RANK[pick.confidence] >= minConfidence &&
+      (strategyFilter === "any" || pick.setups.some((s) => s.key === strategyFilter)),
   );
   const actionable = shown.filter((pick) => pick.status === "actionable");
   const watch = shown.filter((pick) => pick.status === "watch");
@@ -116,6 +119,7 @@ export function MarketOpportunities() {
           <>
             <SegmentedControl label="Direction" options={DIRECTION_OPTIONS} value={direction} onChange={setDirection} />
             <SegmentedControl label="Confidence" options={CONFIDENCE_OPTIONS} value={confidence} onChange={setConfidence} />
+            {horizon === "swing" ? <StrategySelect picks={all} value={strategy} onChange={setStrategy} /> : null}
           </>
         ) : null}
       </div>
@@ -155,6 +159,38 @@ export function MarketOpportunities() {
         fundamentals, FII/DII flows and news are not part of the model yet.
       </p>
     </div>
+  );
+}
+
+/** Filter swing picks by named strategy; each option shows how many of today's picks have it. */
+function StrategySelect({
+  picks,
+  value,
+  onChange,
+}: {
+  picks: Opportunity[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const count = (key: string) => picks.filter((p) => p.setups.some((s) => s.key === key)).length;
+  const description = STRATEGIES.find((s) => s.key === value)?.description;
+  return (
+    <label className="flex items-center gap-2 text-sm">
+      <span className="text-zinc-600 dark:text-zinc-400">Strategy</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        title={description}
+        className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+      >
+        <option value="any">Any</option>
+        {STRATEGIES.map((s) => (
+          <option key={s.key} value={s.key}>
+            {s.name} ({count(s.key)})
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

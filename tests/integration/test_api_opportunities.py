@@ -64,6 +64,13 @@ def seeded(fresh_db, migrate):
         ids["swing_watch"] = _pick(conn, b, "swing", NEW, status="watch", score=90)
         ids["swing_top"] = _pick(conn, a, "swing", NEW, score=80)
         ids["swing_sell"] = _pick(conn, g, "swing", NEW, direction="SELL", score=76)
+        conn.execute(
+            "UPDATE opportunity SET setups = %s WHERE id = %s",
+            (
+                json.dumps([{"key": "breakout", "variant": "", "reason": "Closed below"}]),
+                ids["swing_sell"],
+            ),
+        )
         ids["long"] = _pick(conn, a, "long_term", NEW, score=88)
         # Yesterday's picks: closed, for the track record
         for listing, status, ret, score in (
@@ -113,6 +120,7 @@ def test_current_picks_grouped_by_horizon_and_ranked(client, seeded):
     assert top["targets"] == [110.0, 115.0] and top["supports"] == [96.0]
     assert top["factors"][0]["group"] == "trend"
     assert "inputs" not in top
+    assert top["setups"] == [] and swing[1]["setups"][0]["key"] == "breakout"
     assert [x["id"] for x in body["horizons"]["long_term"]] == [ids["long"]]
     assert body["horizons"]["next_session"] == []
 

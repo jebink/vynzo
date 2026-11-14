@@ -14,6 +14,14 @@ class FactorScore(BaseModel):
     reason: str
 
 
+class SetupTag(BaseModel):
+    """A named swing strategy that agrees with the pick (analytics-worker strategies.py)."""
+
+    key: str
+    variant: str
+    reason: str
+
+
 class Regime(BaseModel):
     score: float
     label: str
@@ -45,6 +53,7 @@ class OpportunityItem(BaseModel):
     factors: list[FactorScore]
     risks: list[str]
     invalidation: list[str]
+    setups: list[SetupTag]
     calc_version: str
 
 

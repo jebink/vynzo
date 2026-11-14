@@ -198,6 +198,14 @@ export interface MarketRegime {
   notes: string[];
 }
 
+/** A named swing strategy that agrees with a pick (see `STRATEGIES` in features/opportunities). */
+export interface SetupTag {
+  key: string;
+  /** e.g. which crossover ("9/21", "50/200") or chart pattern ("flag", "double_bottom"). */
+  variant: string;
+  reason: string;
+}
+
 export interface Opportunity {
   id: number;
   listing_id: number;
@@ -225,6 +233,8 @@ export interface Opportunity {
   factors: FactorScore[];
   risks: string[];
   invalidation: string[];
+  /** Swing only; empty for other horizons and for picks made before model opp-1.5.0. */
+  setups: SetupTag[];
   calc_version: string;
 }
 

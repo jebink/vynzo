@@ -17,7 +17,12 @@ import pandas as pd
 from analytics_worker.config import Settings
 from analytics_worker.db import connect
 from analytics_worker.indicators.job import run_indicators
-from analytics_worker.opportunities.backtest import dedupe, run_backtest, summarize
+from analytics_worker.opportunities.backtest import (
+    dedupe,
+    run_backtest,
+    summarize,
+    summarize_setups,
+)
 from analytics_worker.opportunities.job import run_opportunities, run_outcomes
 from analytics_worker.signals.high_volume_buy import run_high_volume_buy
 
@@ -65,9 +70,14 @@ def backtest(args: argparse.Namespace, settings: Settings) -> int:
         raise SystemExit("backtest needs --start and --end (YYYY-MM-DD)")
     split = args.split or args.start
     with connect(settings.database_url) as conn:
-        picks, _ = run_backtest(conn, start=args.start, end=args.end, workers=args.workers)
-    rows = summarize(dedupe(picks), split=pd.Timestamp(split, tz="UTC"))
-    print(json.dumps({"picks": len(picks), "groups": rows}, default=str), flush=True)
+        run = run_backtest(conn, start=args.start, end=args.end, workers=args.workers)
+    cut = pd.Timestamp(split, tz="UTC")
+    summary = {
+        "picks": len(run.picks),
+        "groups": summarize(dedupe(run.picks), split=cut),
+        "setups": summarize_setups(dedupe(run.setup_trades), split=cut, benchmark=run.benchmark),
+    }
+    print(json.dumps(summary, default=str), flush=True)
     return 0
 
 

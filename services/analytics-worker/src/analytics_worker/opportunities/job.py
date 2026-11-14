@@ -41,7 +41,7 @@ WHERE o.as_of = %(as_of)s
 _COLUMNS = (
     "listing_id, horizon, as_of, direction, status, score, confidence, price, entry_low, "
     "entry_high, stop_loss, targets, risk_reward, holding_period, max_sessions, supports, "
-    "resistances, reasons, factors, risks, invalidation, regime, inputs, calc_version"
+    "resistances, reasons, factors, risks, invalidation, regime, inputs, setups, calc_version"
 ).split(", ")
 INSERT_SQL = (
     f"INSERT INTO opportunity ({', '.join(_COLUMNS)}) "  # noqa: S608 - fixed column list
@@ -137,6 +137,7 @@ def _row(listing_id: int, session: pd.Timestamp, opp: Opportunity, regime: Regim
         "invalidation": Jsonb(opp.invalidation),
         "regime": Jsonb(regime.as_json()),
         "inputs": Jsonb(opp.inputs),
+        "setups": Jsonb([x.as_json() for x in opp.setups]),
         "calc_version": CALC_VERSION,
     }
 

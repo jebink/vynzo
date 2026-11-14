@@ -268,3 +268,14 @@ def test_a_bearish_market_blocks_an_actionable_buy():
     assert opp is None or opp.status == "watch"
     if opp is not None:
         assert any("against this BUY" in r for r in opp.risks)
+
+
+def test_swing_picks_carry_the_named_setups_that_agree_with_them():
+    from analytics_worker.opportunities.engine import scan
+
+    result = scan(_uptrend_breakout(), None, NEUTRAL)
+    swing = next(p for p in result.picks if p.horizon == "swing")
+    assert swing.setups and all(s.direction == swing.direction for s in swing.setups)
+    assert "breakout" in {s.key for s in swing.setups}
+    assert {s.key for s in swing.setups} <= {s.key for s in result.setups}
+    assert all(not p.setups for p in result.picks if p.horizon != "swing")

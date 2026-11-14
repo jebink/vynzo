@@ -9,7 +9,7 @@ _ITEM_COLUMNS = """
     o.id, o.listing_id, l.exchange::text AS exchange, l.symbol, c.name AS company_name,
     o.horizon, o.as_of, o.direction, o.status, o.score, o.confidence, o.price, o.entry_low,
     o.entry_high, o.stop_loss, o.targets, o.risk_reward, o.holding_period, o.supports,
-    o.resistances, o.reasons, o.factors, o.risks, o.invalidation, o.calc_version
+    o.resistances, o.reasons, o.factors, o.risks, o.invalidation, o.setups, o.calc_version
 """
 _FROM = (
     "FROM opportunity o JOIN listings l USING (listing_id) LEFT JOIN companies c USING (company_id)"

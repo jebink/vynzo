@@ -1,4 +1,4 @@
-.PHONY: help install db-up db-down migrate migrate-status api web test lint
+.PHONY: help install db-up db-down tunnel tunnel-stop tunnel-status migrate migrate-status api web test lint
 
 help:            ## List targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -12,6 +12,15 @@ db-up:           ## Start TimescaleDB
 
 db-down:         ## Stop TimescaleDB (keeps data)
 	docker compose -f infra/compose/timescaledb/docker-compose.yml down
+
+tunnel:          ## Tunnel localhost:5432 to the dev server's database (SSH)
+	scripts/tunnel.sh start
+
+tunnel-stop:     ## Close the dev database tunnel
+	scripts/tunnel.sh stop
+
+tunnel-status:   ## Show whether the dev database tunnel is up
+	scripts/tunnel.sh status
 
 migrate:         ## Apply pending database migrations
 	scripts/migrate.sh up

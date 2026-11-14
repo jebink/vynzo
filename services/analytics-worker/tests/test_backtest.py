@@ -5,9 +5,11 @@ import pandas as pd
 import pytest
 from analytics_worker.opportunities.backtest import (
     BacktestPick,
+    SetupTrade,
     backtest_listing,
     dedupe,
     summarize,
+    summarize_setups,
 )
 from analytics_worker.opportunities.outcomes import Outcome
 from analytics_worker.opportunities.regime import market_regime
@@ -32,7 +34,7 @@ def _bars(n=520, seed=4):
 
 def _run(bars, sessions):
     regimes = {s: market_regime(None) for s in sessions}
-    return backtest_listing(7, "TEST", bars, None, regimes, sessions)
+    return backtest_listing(7, "TEST", bars, None, regimes, sessions).picks
 
 
 def test_picks_only_use_bars_up_to_their_session():
@@ -92,3 +94,36 @@ def test_summarize_hit_rate_returns_and_bands():
     assert row["hit_rate"] == pytest.approx(1 / 3)
     assert row["avg_return_pct"] == pytest.approx(2.0)
     assert row["bands"]["85-100"]["entered"] == 1 and row["bands"]["70-84"]["entered"] == 2
+
+
+def test_setup_trades_ignore_the_future_and_close_on_later_bars():
+    bars = _bars()
+    sessions = list(bars.index[300:420])
+    regimes = {s: market_regime(None) for s in sessions}
+    trades = backtest_listing(7, "TEST", bars, None, regimes, sessions).setup_trades
+    assert trades and {t.key for t in trades} > {"macd_momentum"}
+    wrecked = bars.copy()
+    wrecked.loc[wrecked.index > sessions[-1], ["open", "high", "low", "close"]] *= 0.3
+    again = backtest_listing(7, "TEST", wrecked, None, regimes, sessions).setup_trades
+    key = lambda t: (t.as_of, t.key, t.variant, t.direction)  # noqa: E731
+    assert [key(t) for t in trades] == [key(t) for t in again]
+    for t in trades:
+        if t.outcome is not None and t.outcome.exit_at is not None:
+            assert t.outcome.exit_at > t.as_of
+
+
+def _trade(day, exit_day, key="breakout", ret=4.0):
+    as_of = pd.Timestamp(f"2026-01-{day:02d}", tz="UTC")
+    exit_at = pd.Timestamp(f"2026-01-{exit_day:02d}", tz="UTC")
+    outcome = Outcome("target_hit", as_of, 100.0, exit_at, 104.0, ret, 2)
+    return SetupTrade(1, "X", key, "", as_of, "BUY", "neutral", outcome)
+
+
+def test_setup_trades_dedupe_per_strategy_and_compare_with_nifty():
+    first, repeat, other = _trade(5, 9), _trade(6, 9), _trade(6, 9, key="macd_momentum")
+    kept = dedupe([first, repeat, other])
+    assert kept == [first, other]
+    nifty = pd.Series([100.0, 101.0], index=pd.to_datetime(["2026-01-05", "2026-01-09"], utc=True))
+    rows = summarize_setups(kept, split=pd.Timestamp("2027-01-01", tz="UTC"), benchmark=nifty)
+    row = next(r for r in rows if r["group"] == ("in_sample", "breakout", "BUY"))
+    assert row["entered"] == 1 and row["excess_vs_nifty_pct"] == pytest.approx(3.0)

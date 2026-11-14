@@ -177,11 +177,18 @@ The newest session's picks, grouped by horizon; each list is actionable first, t
               "reasons": ["Breakout above the 20-day high 3645.00"],
               "factors": [{"group": "trend", "score": 1.0, "reason": "Close above the 21-day EMA, ..."}],
               "risks": ["No earnings or events calendar yet: ..."], "invalidation": ["Daily close below the stop-loss 3400.38"],
-              "calc_version": "opp-1.4.0"}]}}
+              "setups": [{"key": "breakout", "variant": "", "reason": "Closed above the 20-day high 3645.00 on 2.1× normal volume"}],
+              "calc_version": "opp-1.5.0"}]}}
 ```
 `status`: `actionable` passed every check; `watch` is monitor-only. Next-session picks are always
 `watch` until an intraday feed exists. Since `opp-1.4.0`, SELL picks are always `watch`, and a BUY
-is never `actionable` in a bearish market regime (backtest results in the plan doc). `as_of` is `null` (and every list empty) before the first run.
+is never `actionable` in a bearish market regime (backtest results in the plan doc).
+
+`setups` (swing only, since `opp-1.5.0`; `[]` otherwise) lists the named swing strategies that
+agree with the pick. `key` is one of `trend_pullback`, `breakout`, `ma_crossover` (`variant`
+`9/21` or `50/200`), `rsi_pullback`, `macd_momentum`, `squeeze_breakout`, `support_bounce`,
+`relative_strength`, `volume_accumulation`, `chart_pattern` (`variant` `flag`, `cup_and_handle`,
+`double_bottom`, `ascending_triangle`). Setups label a pick; they do not change its score or status. `as_of` is `null` (and every list empty) before the first run.
 
 ### `GET /v1/opportunities/{id}`
 One pick (same fields) plus `regime`, `inputs` (the feature values it was scored from) and

@@ -6,7 +6,7 @@ import { ExchangeBadge } from "@/components/exchange-badge";
 import { formatPrice } from "@/lib/format";
 import { stockHref } from "@/lib/routes";
 import type { FactorScore, Opportunity } from "@/lib/types";
-import { FACTOR_LABELS } from "./horizons";
+import { FACTOR_LABELS, setupLabel } from "./horizons";
 
 const DIRECTION_STYLE = {
   BUY: {
@@ -57,6 +57,19 @@ export function OpportunityCard({ pick }: { pick: Opportunity }) {
           <p className="mt-0.5 truncate text-sm text-zinc-600 dark:text-zinc-400">
             {pick.company_name ?? "—"}
           </p>
+          {pick.setups.length ? (
+            <ul aria-label="Strategy setups" className="mt-2 flex flex-wrap gap-1.5">
+              {pick.setups.map((setup) => (
+                <li
+                  key={`${setup.key}:${setup.variant}`}
+                  title={setup.reason}
+                  className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-300"
+                >
+                  {setupLabel(setup.key, setup.variant)}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
         <div className="text-right">
           <p className="text-2xl font-semibold leading-none tabular-nums">
@@ -112,6 +125,12 @@ export function OpportunityCard({ pick }: { pick: Opportunity }) {
             ))}
           </section>
           <div className="space-y-4 text-sm">
+            {pick.setups.length ? (
+              <TextList
+                title="Strategy setups"
+                items={pick.setups.map((s) => `${setupLabel(s.key, s.variant)}: ${s.reason}`)}
+              />
+            ) : null}
             <LevelList title="Resistance" values={pick.resistances} />
             <LevelList title="Support" values={pick.supports} />
             <TextList title="Invalidated if" items={pick.invalidation} />

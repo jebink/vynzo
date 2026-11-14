@@ -30,15 +30,21 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from analytics_worker.opportunities.features import Features, clip, compute_features, finite
+from analytics_worker.opportunities.features import (
+    VOLUME_ANOMALY,
+    Features,
+    clip,
+    compute_features,
+    finite,
+)
 from analytics_worker.opportunities.levels import Levels, find_levels
 from analytics_worker.opportunities.regime import Regime
+from analytics_worker.opportunities.strategies import Setup, detect_setups
 
-CALC_VERSION = "opp-1.4.0"
+CALC_VERSION = "opp-1.5.0"
 
 MIN_CONFLUENCE = 3
 MIN_PRICE = 20.0
-VOLUME_ANOMALY = 10.0  # relative volume above this is more likely a block deal or a data error
 ACTIONABLE_DIRECTIONS = ("BUY",)  # SELL: monitor only until a backtest shows an edge (rule 5)
 CONFIDENCE_ORDER = ("low", "medium", "high")
 
@@ -96,6 +102,7 @@ class Opportunity:
     risks: list[str]
     invalidation: list[str]
     inputs: dict = field(default_factory=dict)
+    setups: list[Setup] = field(default_factory=list)  # named strategies agreeing (swing)
 
 
 def _sign(x: float) -> int:
@@ -553,12 +560,22 @@ def _blocking_risks(direction: str, regime: Regime) -> list[str]:
     return out
 
 
-def evaluate(horizon: str, f: Features, levels: Levels, regime: Regime) -> Opportunity | None:
-    """The opportunity for one listing and horizon, or None when it does not qualify."""
+def evaluate(
+    horizon: str,
+    f: Features,
+    levels: Levels,
+    regime: Regime,
+    setups: list[Setup] | tuple[Setup, ...] = (),
+) -> Opportunity | None:
+    """The opportunity for one listing and horizon, or None when it does not qualify.
+
+    ``setups`` (named strategies, `strategies.py`) that agree with the pick's direction are
+    attached to it. They label the pick; they do not change its score or status.
+    """
     recipe = RECIPES[horizon]
     if f.bars < recipe.min_bars or not finite(f.atr14) or f.atr14 <= 0:
         return None
-    if f.close < MIN_PRICE or f.traded_value_20 < recipe.min_traded_value:
+    if not _tradeable(f, recipe):
         return None
     factors = recipe.factors(f)
     c = confluence(recipe.weights, factors, recipe.agree)
@@ -638,6 +655,7 @@ def evaluate(horizon: str, f: Features, levels: Levels, regime: Regime) -> Oppor
         risks=risks,
         invalidation=_invalidation(recipe, f, plan, d),
         inputs=f.inputs(),
+        setups=[s for s in setups if s.direction == direction],
     )
 
 
@@ -679,22 +697,45 @@ def _invalidation(recipe: Recipe, f: Features, plan: Plan, d: int) -> list[str]:
     return out
 
 
-def score_listing(
-    bars: pd.DataFrame, benchmark: pd.Series | None, regime: Regime
-) -> list[Opportunity] | None:
-    """Every horizon's pick for one listing at its last bar; None when history is too short.
+@dataclass(frozen=True)
+class Scan:
+    picks: list[Opportunity]
+    setups: list[Setup]  # every swing setup at this bar, whether or not a pick was made
+    features: Features
 
-    Shared by the daily job and the backtest, so both score exactly the same way.
+
+def scan(bars: pd.DataFrame, benchmark: pd.Series | None, regime: Regime) -> Scan | None:
+    """Every horizon's pick and every swing setup for one listing at its last bar.
+
+    None when history is too short. Shared by the daily job and the backtest, so both score
+    exactly the same way. Setups are only looked for in stocks the swing recipe would trade
+    (price and liquidity floors).
     """
     features = compute_features(bars, benchmark)
     if features is None:
         return None
+    swing = RECIPES["swing"]
+    setups: list[Setup] = []
     picks = []
     for horizon, recipe in RECIPES.items():
         levels = find_levels(
             bars, k=recipe.pivot_k, lookback=recipe.pivot_lookback, atr=features.atr14
         )
-        opp = evaluate(horizon, features, levels, regime)
+        if recipe is swing and _tradeable(features, swing):
+            setups = detect_setups(bars, features, levels)
+        opp = evaluate(horizon, features, levels, regime, setups if recipe is swing else ())
         if opp is not None:
             picks.append(opp)
-    return picks
+    return Scan(picks, setups, features)
+
+
+def _tradeable(f: Features, recipe: Recipe) -> bool:
+    return f.close >= MIN_PRICE and f.traded_value_20 >= recipe.min_traded_value
+
+
+def score_listing(
+    bars: pd.DataFrame, benchmark: pd.Series | None, regime: Regime
+) -> list[Opportunity] | None:
+    """Every horizon's pick for one listing at its last bar; None when history is too short."""
+    result = scan(bars, benchmark, regime)
+    return None if result is None else result.picks

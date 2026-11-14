@@ -81,7 +81,8 @@ def _picks(url):
     with psycopg.connect(url) as conn:
         return conn.execute(
             "SELECT listing_id, horizon, direction, status, as_of, calc_version, regime->>'label', "
-            "jsonb_array_length(reasons), inputs->>'close' FROM opportunity ORDER BY horizon"
+            "jsonb_array_length(reasons), inputs->>'close', setups "
+            "FROM opportunity ORDER BY horizon"
         ).fetchall()
 
 
@@ -98,6 +99,7 @@ def test_opportunities_job_writes_deduped_fresh_picks(seeded):
     assert swing[4] == DATES[-1].to_pydatetime()
     assert swing[5] == CALC_VERSION and swing[6] in ("bullish", "neutral")
     assert swing[7] >= 3 and float(swing[8]) > 0
+    assert swing[9] and all(set(x) == {"key", "variant", "reason"} for x in swing[9])
     assert report.found["swing"] == 1
 
     # Re-running the same session replaces the day's picks instead of adding duplicates.

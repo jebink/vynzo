@@ -21,6 +21,7 @@ from analytics_worker.indicators.ta import (
 MIN_BARS = 60  # enough for every short-horizon input; long-term needs LONG_TERM_MIN_BARS
 LONG_TERM_MIN_BARS = 260
 NAN = float("nan")
+VOLUME_ANOMALY = 10.0  # relative volume above this is more likely a block deal or a data error
 
 
 @dataclass(frozen=True)
